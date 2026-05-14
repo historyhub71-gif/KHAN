@@ -1,0 +1,303 @@
+STUDENT ATTENDANCE SYSTEM (SUPABASE SQL GUIDE)
+=================================================
+
+This document contains:
+1. SQL Queries to Create Tables
+2. SQL Queries to Enable Row Level Security (RLS)
+3. RLS Policies for Role-Based Access Control
+
+-------------------------------------------------
+SECTION 1: CREATE TABLES (RUN IN ORDER)
+-------------------------------------------------
+
+1. PROFILES (Run FIRST)
+-----------------------
+CREATE TABLE public.profiles (
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  name text,
+  email text UNIQUE,
+  role text CHECK (role IN ('admin', 'teacher', 'student')),
+  approved boolean DEFAULT false,
+  created_at timestamp DEFAULT now()
+);
+
+
+2. COURSES
+----------
+CREATE TABLE public.courses (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text,
+  code text UNIQUE,
+  created_by uuid NOT NULL,
+  created_at timestamp DEFAULT now(),
+  CONSTRAINT courses_created_by_fkey
+    FOREIGN KEY (created_by)
+    REFERENCES public.profiles(id)
+    ON DELETE CASCADE
+);
+
+
+3. COURSE_STUDENTS
+------------------
+CREATE TABLE public.course_students (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  course_id uuid,
+  student_id uuid,
+  CONSTRAINT course_students_course_id_fkey
+    FOREIGN KEY (course_id)
+    REFERENCES public.courses(id)
+    ON DELETE CASCADE,
+  CONSTRAINT course_students_student_id_fkey
+    FOREIGN KEY (student_id)
+    REFERENCES public.profiles(id)
+    ON DELETE CASCADE
+);
+
+
+4. COURSE_TEACHERS
+------------------
+CREATE TABLE public.course_teachers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  course_id uuid,
+  teacher_id uuid,
+  CONSTRAINT course_teachers_course_id_fkey
+    FOREIGN KEY (course_id)
+    REFERENCES public.courses(id)
+    ON DELETE CASCADE,
+  CONSTRAINT course_teachers_teacher_id_fkey
+    FOREIGN KEY (teacher_id)
+    REFERENCES public.profiles(id)
+    ON DELETE CASCADE
+);
+
+
+5. ATTENDANCE (Run LAST)
+------------------------
+CREATE TABLE public.attendance (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  course_id uuid,
+  student_id uuid,
+  teacher_id uuid,
+  status text CHECK (status IN ('present', 'absent')),
+  date date,
+  created_at timestamp DEFAULT now(),
+  CONSTRAINT attendance_course_id_fkey
+    FOREIGN KEY (course_id)
+    REFERENCES public.courses(id)
+    ON DELETE CASCADE,
+  CONSTRAINT attendance_student_id_fkey
+    FOREIGN KEY (student_id)
+    REFERENCES public.profiles(id)
+    ON DELETE CASCADE,
+  CONSTRAINT attendance_teacher_id_fkey
+    FOREIGN KEY (teacher_id)
+    REFERENCES public.profiles(id)
+    ON DELETE CASCADE
+);
+
+
+-------------------------------------------------
+SECTION 2: ENABLE ROW LEVEL SECURITY (RLS)
+-------------------------------------------------
+
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE courses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE course_students ENABLE ROW LEVEL SECURITY;
+ALTER TABLE course_teachers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
+
+
+-------------------------------------------------
+SECTION 3: HELPER FUNCTIONS
+-------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.is_teacher()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid()
+      AND role = 'teacher'
+      AND approved = true
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid()
+      AND role = 'admin'
+      AND approved = true
+  );
+$$;
+
+
+-------------------------------------------------
+SECTION 4: RLS POLICIES
+-------------------------------------------------
+
+-- PROFILES TABLE
+
+CREATE POLICY "Users can read own profile or admin/teacher"
+ON profiles FOR SELECT TO authenticated
+USING (
+  (id = auth.uid() AND approved = true)
+  OR public.is_admin()
+  OR public.is_teacher()
+);
+
+CREATE POLICY "Users can insert their own profile"
+ON profiles FOR INSERT TO authenticated
+WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Only admin can update profiles"
+ON profiles FOR UPDATE TO authenticated
+USING (public.is_admin())
+WITH CHECK (public.is_admin());
+
+CREATE POLICY "Only admin can delete profiles"
+ON profiles FOR DELETE TO authenticated
+USING (public.is_admin());
+
+
+-- COURSES TABLE
+
+CREATE POLICY "Users can view courses"
+ON courses FOR SELECT TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid() AND approved = true
+  )
+);
+
+CREATE POLICY "Only admin can insert courses"
+ON courses FOR INSERT TO authenticated
+WITH CHECK (public.is_admin());
+
+CREATE POLICY "Only admin can update courses"
+ON courses FOR UPDATE TO authenticated
+USING (public.is_admin())
+WITH CHECK (public.is_admin());
+
+CREATE POLICY "Only admin can delete courses"
+ON courses FOR DELETE TO authenticated
+USING (public.is_admin());
+
+
+-- COURSE_TEACHERS TABLE
+
+CREATE POLICY "Users can view course_teachers"
+ON course_teachers FOR SELECT TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid() AND approved = true
+  )
+);
+
+CREATE POLICY "Only admin can insert course_teachers"
+ON course_teachers FOR INSERT TO authenticated
+WITH CHECK (public.is_admin());
+
+CREATE POLICY "Only admin can update course_teachers"
+ON course_teachers FOR UPDATE TO authenticated
+USING (public.is_admin())
+WITH CHECK (public.is_admin());
+
+CREATE POLICY "Only admin can delete course_teachers"
+ON course_teachers FOR DELETE TO authenticated
+USING (public.is_admin());
+
+
+-- COURSE_STUDENTS TABLE
+
+CREATE POLICY "Users can view course_students"
+ON course_students FOR SELECT TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid() AND approved = true
+  )
+);
+
+CREATE POLICY "Only admin can insert course_students"
+ON course_students FOR INSERT TO authenticated
+WITH CHECK (public.is_admin());
+
+CREATE POLICY "Only admin can update course_students"
+ON course_students FOR UPDATE TO authenticated
+USING (public.is_admin())
+WITH CHECK (public.is_admin());
+
+CREATE POLICY "Only admin can delete course_students"
+ON course_students FOR DELETE TO authenticated
+USING (public.is_admin());
+
+
+-- ATTENDANCE TABLE
+
+CREATE POLICY "Users can view attendance"
+ON attendance FOR SELECT TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid() AND approved = true
+  )
+);
+
+CREATE POLICY "Only teacher can insert attendance"
+ON attendance FOR INSERT TO authenticated
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid()
+      AND approved = true
+      AND role = 'teacher'
+  )
+);
+
+CREATE POLICY "Only teacher can update attendance"
+ON attendance FOR UPDATE TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid()
+      AND approved = true
+      AND role = 'teacher'
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid()
+      AND approved = true
+      AND role = 'teacher'
+  )
+);
+
+
+=================================================
+END OF DOCUMENT
+=================================================
+
+-------------------------------------------------
+SECTION 5: FULL AUTHORIZATION FOR HASHIR KHAN
+-------------------------------------------------
+
+-- To give yourself full authorization as an Admin, 
+-- sign up in the app first, then run this SQL snippet 
+-- in the Supabase SQL Editor:
+
+UPDATE public.profiles
+SET role = 'admin', approved = true
+WHERE email = 'YOUR_EMAIL@example.com';
+-- (Replace 'YOUR_EMAIL@example.com' with the email you signed up with)
