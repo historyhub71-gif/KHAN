@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "HASHIR KHAN",
-    "slug": "hashir-khan-attendance",
+    "slug": "httpspsbklzpvrolunntszfdmsupabaseco",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -53,9 +53,7 @@
     },
     "extra": {
       "router": {},
-      "eas": {
-        "projectId": "56dcedb1-ce59-4978-a02b-e3c0a9e6ea79"
-      }
+      "eas": {}
     }
   }
 }
