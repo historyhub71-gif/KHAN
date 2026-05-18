@@ -1,5 +1,6 @@
 import { Course, Profile } from "../types";
 import { supabase } from "../utils/supabase";
+import { notificationService } from "./notificationService";
 
 export const teacherService = {
   // Get assigned courses
@@ -61,6 +62,21 @@ export const teacherService = {
       .single();
 
     if (error) throw error;
+
+    if (status === 'absent' && data?.id) {
+      const course = await teacherService.getCourse(courseId);
+      const notif = await notificationService.notifyStudentAbsent({
+        studentId,
+        teacherId,
+        courseId,
+        attendanceId: data.id,
+        courseName: course.name,
+      });
+      if (!notif.ok) {
+        console.warn('Notification not created:', notif.error);
+      }
+    }
+
     return data;
   },
 
@@ -96,5 +112,20 @@ export const teacherService = {
 
     if (error) throw error;
     return data || [];
+  },
+
+  isTeacherAssignedToCourse: async (
+    teacherId: string,
+    courseId: string
+  ): Promise<boolean> => {
+    const { data, error } = await supabase
+      .from('course_teachers')
+      .select('id')
+      .eq('teacher_id', teacherId)
+      .eq('course_id', courseId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return !!data;
   },
 };

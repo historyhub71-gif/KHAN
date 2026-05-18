@@ -18,6 +18,7 @@ interface StudentAttendanceListProps {
   existingAttendance: { [studentId: string]: 'present' | 'absent' };
   onSubmitAll: (attendanceMap: { [studentId: string]: 'present' | 'absent' }) => void;
   isSubmitting: boolean;
+  onOpenReport?: (student: Profile) => void;
 }
 
 export const StudentAttendanceList: React.FC<StudentAttendanceListProps> = ({
@@ -26,6 +27,7 @@ export const StudentAttendanceList: React.FC<StudentAttendanceListProps> = ({
   existingAttendance,
   onSubmitAll,
   isSubmitting,
+  onOpenReport,
 }) => {
   const [attendance, setAttendance] = useState<{ [studentId: string]: 'present' | 'absent' | null }>({});
 
@@ -82,6 +84,16 @@ export const StudentAttendanceList: React.FC<StudentAttendanceListProps> = ({
               <Text style={styles.studentName}>{item.name}</Text>
               <Text style={styles.studentEmail}>{item.email}</Text>
             </View>
+
+            {onOpenReport ? (
+              <TouchableOpacity
+                style={styles.reportBtn}
+                onPress={() => onOpenReport(item)}
+                accessibilityLabel="Download PDF report"
+              >
+                <MaterialIcons name="picture-as-pdf" size={22} color={Colors.primary} />
+              </TouchableOpacity>
+            ) : null}
 
             <View style={styles.radioGroup}>
               <TouchableOpacity
@@ -167,8 +179,16 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.lightGray,
+    gap: 8,
+  },
+  reportBtn: {
+    padding: 8,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: Colors.lightGray,
   },
@@ -200,7 +220,7 @@ const styles = StyleSheet.create({
   },
   radioSelected: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.light,
+    backgroundColor: Colors.lightGray,
   },
   radioText: {
     fontSize: 14,

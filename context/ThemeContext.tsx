@@ -1,8 +1,11 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import { DarkColors, LightColors } from '../utils/colors';
 
-type ThemeType = 'light' | 'dark';
+const THEME_STORAGE_KEY = '@attendance_app_theme';
+
+type ThemeType = 'light' | 'dark' | 'system';
 
 interface ThemeContextType {
   theme: ThemeType;
@@ -15,28 +18,52 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Force theme to light as requested
-  const [theme, setThemeState] = useState<ThemeType>('light');
+  const systemScheme = useColorScheme();
+  const [theme, setThemeState] = useState<ThemeType>('system');
 
-  const toggleTheme = () => {
-    // Disabled toggle - always stay in light mode
-    setThemeState('light');
-  };
+  useEffect(() => {
+    AsyncStorage.getItem(THEME_STORAGE_KEY).then((stored) => {
+      if (stored === 'light' || stored === 'dark' || stored === 'system') {
+        setThemeState(stored);
+      }
+    });
+  }, []);
 
-  const setTheme = (newTheme: ThemeType) => {
-    // Force to light regardless of input
-    setThemeState('light');
-  };
+  const isDark =
+    theme === 'dark' || (theme === 'system' && systemScheme === 'dark');
 
-  const value = {
-    theme: 'light' as ThemeType,
-    colors: LightColors,
-    isDark: false,
-    toggleTheme,
-    setTheme,
-  };
+  const colors = isDark ? DarkColors : LightColors;
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  const persistTheme = useCallback(async (next: ThemeType) => {
+    setThemeState(next);
+    await AsyncStorage.setItem(THEME_STORAGE_KEY, next);
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    const next = isDark ? 'light' : 'dark';
+    persistTheme(next);
+  }, [isDark, persistTheme]);
+
+  const setTheme = useCallback(
+    (newTheme: ThemeType) => {
+      persistTheme(newTheme);
+    },
+    [persistTheme]
+  );
+
+  return (
+    <ThemeContext.Provider
+      value={{
+        theme,
+        colors,
+        isDark,
+        toggleTheme,
+        setTheme,
+      }}
+    >
+      {children}
+    </ThemeContext.Provider>
+  );
 };
 
 export const useTheme = () => {

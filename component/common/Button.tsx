@@ -6,6 +6,7 @@ import {
     TextStyle,
     TouchableOpacity,
     ViewStyle,
+    StyleProp,
 } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 
@@ -17,8 +18,8 @@ interface ButtonProps {
   variant?: 'primary' | 'secondary' | 'danger' | 'success';
   size?: 'small' | 'medium' | 'large';
   fullWidth?: boolean;
-  style?: ViewStyle;
-  textStyle?: TextStyle;
+  style?: StyleProp<ViewStyle>;
+  textStyle?: StyleProp<TextStyle>;
 }
 
 export const Button: React.FC<ButtonProps> = ({

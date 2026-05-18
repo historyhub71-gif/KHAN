@@ -1,8 +1,10 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
+import { Href, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+    RefreshControl,
+    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -17,12 +19,12 @@ import { useTheme } from '../../context/ThemeContext';
 
 export default function TeacherDashboardScreen() {
   const { user, signOut, isLoading: authLoading } = useAuth();
-  const { colors } = useTheme();
+  const { colors, isDark, toggleTheme } = useTheme();
   const router = useRouter();
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Redirect if not approved
   useEffect(() => {
     if (user && !user.approved) {
       router.replace('/(auth)/pending-approval');
@@ -56,6 +58,12 @@ export default function TeacherDashboardScreen() {
     }
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchCourses();
+    setRefreshing(false);
+  };
+
   const handleNavigateToCourse = (course: Course) => {
     router.push({
       pathname: '/(teacher)/courses/[id]',
@@ -74,8 +82,13 @@ export default function TeacherDashboardScreen() {
 
   return (
     <ScreenContainer>
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* Header */}
+      <ScrollView 
+        contentContainerStyle={[styles.container, { backgroundColor: colors.background }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+        }
+      >
         <View style={styles.header}>
           <TouchableOpacity
             style={[styles.logoutButton, { backgroundColor: colors.surface, borderColor: colors.danger + '40' }]}
@@ -88,12 +101,36 @@ export default function TeacherDashboardScreen() {
             <Text style={[styles.greeting, { color: colors.textSecondary }]}>Welcome back,</Text>
             <Text style={[styles.userName, { color: colors.text }]}>{user?.name}</Text>
           </View>
+          <TouchableOpacity
+            style={[styles.iconButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={toggleTheme}
+          >
+            <MaterialIcons
+              name={isDark ? 'light-mode' : 'dark-mode'}
+              size={22}
+              color={colors.text}
+            />
+          </TouchableOpacity>
           <View style={[styles.roleBadge, { backgroundColor: colors.primary + '10' }]}>
             <Text style={[styles.roleBadgeText, { color: colors.primary }]}>TEACHER</Text>
           </View>
         </View>
 
-        {/* Courses List */}
+        <TouchableOpacity
+          style={[styles.analyticsCard, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+          onPress={() => router.push('/(teacher)/analytics' as Href)}
+          activeOpacity={0.85}
+        >
+          <MaterialIcons name="analytics" size={28} color={colors.white} />
+          <View style={styles.analyticsText}>
+            <Text style={styles.analyticsTitle}>Analytics Dashboard</Text>
+            <Text style={styles.analyticsSubtitle}>
+              Today&apos;s stats, student rates & history
+            </Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={24} color={colors.white} />
+        </TouchableOpacity>
+
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Courses</Text>
           <View style={[styles.countBadge, { backgroundColor: colors.surface }]}>
@@ -106,7 +143,7 @@ export default function TeacherDashboardScreen() {
           isLoading={isLoading}
           onCoursePress={handleNavigateToCourse}
         />
-      </View>
+      </ScrollView>
     </ScreenContainer>
   );
 }
@@ -119,13 +156,21 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 32,
-    gap: 12,
+    marginBottom: 20,
+    gap: 8,
   },
   logoutButton: {
     width: 48,
     height: 48,
     borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
@@ -152,6 +197,28 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.5,
+  },
+  analyticsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 24,
+    gap: 12,
+    borderWidth: 1,
+  },
+  analyticsText: {
+    flex: 1,
+  },
+  analyticsTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  analyticsSubtitle: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 12,
+    marginTop: 4,
   },
   sectionHeader: {
     flexDirection: 'row',

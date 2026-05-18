@@ -8,6 +8,7 @@ export const adminService = {
       .from('profiles')
       .select('*')
       .eq('role', 'teacher')
+      .neq('status', 'rejected')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -33,7 +34,7 @@ export const adminService = {
   approveTeacher: async (id: string) => {
     const { data, error } = await supabase
       .from('profiles')
-      .update({ approved: true })
+      .update({ approved: true, status: 'approved' })
       .eq('id', id)
       .select()
       .single();
@@ -42,10 +43,10 @@ export const adminService = {
     return data;
   },
 
-  disapproveTeacher: async (id: string) => {
+  rejectTeacher: async (id: string) => {
     const { data, error } = await supabase
       .from('profiles')
-      .update({ approved: false })
+      .update({ approved: false, status: 'rejected' })
       .eq('id', id)
       .select()
       .single();
@@ -60,6 +61,7 @@ export const adminService = {
       .from('profiles')
       .select('*')
       .eq('role', 'student')
+      .neq('status', 'rejected')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -85,7 +87,7 @@ export const adminService = {
   approveStudent: async (id: string) => {
     const { data, error } = await supabase
       .from('profiles')
-      .update({ approved: true })
+      .update({ approved: true, status: 'approved' })
       .eq('id', id)
       .select()
       .single();
@@ -94,10 +96,10 @@ export const adminService = {
     return data;
   },
 
-  disapproveStudent: async (id: string) => {
+  rejectStudent: async (id: string) => {
     const { data, error } = await supabase
       .from('profiles')
-      .update({ approved: false })
+      .update({ approved: false, status: 'rejected' })
       .eq('id', id)
       .select()
       .single();
@@ -158,11 +160,46 @@ export const adminService = {
 
   // Course-Teacher Assignment
   assignTeacherToCourse: async (courseId: string, teacherId: string) => {
+    const { data: existing, error: fetchError } = await supabase
+      .from('course_teachers')
+      .select('id')
+      .eq('course_id', courseId)
+      .eq('teacher_id', teacherId)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+    if (existing) return existing;
+
     const { data, error } = await supabase
       .from('course_teachers')
       .insert({ course_id: courseId, teacher_id: teacherId })
       .select()
       .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  assignMultipleTeachersToCourse: async (courseId: string, teacherIds: string[]) => {
+    const { data: existing, error: fetchError } = await supabase
+      .from('course_teachers')
+      .select('teacher_id')
+      .eq('course_id', courseId);
+
+    if (fetchError) throw fetchError;
+
+    const existingTeacherIds = new Set(existing?.map((item: any) => item.teacher_id) || []);
+    const newTeacherIds = teacherIds.filter(id => !existingTeacherIds.has(id));
+
+    if (newTeacherIds.length === 0) {
+      return [];
+    }
+
+    const inserts = newTeacherIds.map(id => ({ course_id: courseId, teacher_id: id }));
+    const { data, error } = await supabase
+      .from('course_teachers')
+      .insert(inserts)
+      .select();
 
     if (error) throw error;
     return data;
@@ -185,16 +222,51 @@ export const adminService = {
       .eq('course_id', courseId);
 
     if (error) throw error;
-    return data?.map((item: any) => item.profiles) || [];
+    return data?.map((item: any) => item.profiles).filter(Boolean) || [];
   },
 
   // Course-Student Assignment
   assignStudentToCourse: async (courseId: string, studentId: string) => {
+    const { data: existing, error: fetchError } = await supabase
+      .from('course_students')
+      .select('id')
+      .eq('course_id', courseId)
+      .eq('student_id', studentId)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+    if (existing) return existing;
+
     const { data, error } = await supabase
       .from('course_students')
       .insert({ course_id: courseId, student_id: studentId })
       .select()
       .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  assignMultipleStudentsToCourse: async (courseId: string, studentIds: string[]) => {
+    const { data: existing, error: fetchError } = await supabase
+      .from('course_students')
+      .select('student_id')
+      .eq('course_id', courseId);
+
+    if (fetchError) throw fetchError;
+
+    const existingStudentIds = new Set(existing?.map((item: any) => item.student_id) || []);
+    const newStudentIds = studentIds.filter(id => !existingStudentIds.has(id));
+
+    if (newStudentIds.length === 0) {
+      return [];
+    }
+
+    const inserts = newStudentIds.map(id => ({ course_id: courseId, student_id: id }));
+    const { data, error } = await supabase
+      .from('course_students')
+      .insert(inserts)
+      .select();
 
     if (error) throw error;
     return data;
@@ -217,6 +289,6 @@ export const adminService = {
       .eq('course_id', courseId);
 
     if (error) throw error;
-    return data?.map((item: any) => item.profiles) || [];
+    return data?.map((item: any) => item.profiles).filter(Boolean) || [];
   },
 };

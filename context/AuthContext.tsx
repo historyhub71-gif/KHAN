@@ -5,6 +5,7 @@ import { supabase } from "../utils/supabase";
 
 interface AuthContextType {
   user: AuthUser | null;
+  authStatus: 'approved' | 'pending' | 'rejected' | null;
   isUnapproved: boolean;
   isLoading: boolean;
   error: string | null;
@@ -21,6 +22,7 @@ interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType>({
   user: null,
+  authStatus: null,
   isUnapproved: false,
   isLoading: true,
   error: null,
@@ -32,7 +34,7 @@ export const AuthContext = createContext<AuthContextType>({
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [isUnapproved, setIsUnapproved] = useState(false);
+  const [authStatus, setAuthStatus] = useState<'approved' | 'pending' | 'rejected' | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,9 +47,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setIsLoading(true);
         setError(null);
 
-        // Timeout promise
+        // Timeout promise - increased to 30 seconds for slow connections
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Auth initialization timed out')), 20000)
+          setTimeout(() => reject(new Error('Auth initialization timed out')), 30000)
         );
 
         // Actual auth promise
@@ -64,15 +66,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         })();
 
         // Race against timeout
-        const result = await Promise.race([authPromise, timeoutPromise]) as AuthUser | 'unapproved' | null;
+        const result = await Promise.race([authPromise, timeoutPromise]) as AuthUser | 'pending' | 'rejected' | null;
 
         if (isMounted) {
-          if (result === 'unapproved') {
-            setIsUnapproved(true);
+          if (result === 'pending') {
+            setAuthStatus('pending');
             setUser(null);
-          } else {
+          } else if (result === 'rejected') {
+            setAuthStatus('rejected');
+            setUser(null);
+          } else if (result) {
             setUser(result);
-            setIsUnapproved(false);
+            setAuthStatus('approved');
+          } else {
+            setUser(null);
+            setAuthStatus(null);
           }
         }
       } catch (err: any) {
@@ -100,7 +108,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (event === 'SIGNED_OUT') {
           if (isMounted) {
             setUser(null);
-            setIsUnapproved(false);
+            setAuthStatus(null);
             setIsLoading(false);
           }
           return;
@@ -111,12 +119,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             try {
               const currentUser = await authService.getCurrentUser();
               if (isMounted) {
-                if (currentUser === 'unapproved') {
-                  setIsUnapproved(true);
+                if (currentUser === 'pending') {
+                  setAuthStatus('pending');
                   setUser(null);
-                } else {
+                } else if (currentUser === 'rejected') {
+                  setAuthStatus('rejected');
+                  setUser(null);
+                } else if (currentUser) {
                   setUser(currentUser);
-                  setIsUnapproved(false);
+                  setAuthStatus('approved');
+                } else {
+                  setUser(null);
+                  setAuthStatus(null);
                 }
                 setIsLoading(false);
               }
@@ -139,12 +153,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setIsLoading(true);
       setError(null);
       const currentUser = await authService.getCurrentUser();
-      if (currentUser === 'unapproved') {
-        setIsUnapproved(true);
+      if (currentUser === 'pending') {
+        setAuthStatus('pending');
         setUser(null);
-      } else {
+      } else if (currentUser === 'rejected') {
+        setAuthStatus('rejected');
+        setUser(null);
+      } else if (currentUser) {
         setUser(currentUser);
-        setIsUnapproved(false);
+        setAuthStatus('approved');
+      } else {
+        setUser(null);
+        setAuthStatus(null);
       }
     } catch (err: any) {
       setError("Failed to refresh authentication");
@@ -170,11 +190,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       console.log('[AuthContext.signUp] authService.signUp completed, result:', newUser);
       
-      // After signup, user is created with approved: false
-      // So they should be treated as unapproved
+      // After signup, user is created with approved: false and status: pending
+      // So they should be treated as pending
       setUser(null);
-      setIsUnapproved(true);
-      console.log('[AuthContext.signUp] State updated, user is unapproved');
+      setAuthStatus('pending');
+      console.log('[AuthContext.signUp] State updated, user is pending');
     } catch (err: any) {
       console.error('[AuthContext.signUp] Error caught:', err);
       const errorMessage = err.message || "Sign up failed";
@@ -194,13 +214,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const authenticatedUser = await authService.signIn(email, password);
       console.log('[AuthContext] signIn successful, user:', authenticatedUser);
       
-      if (authenticatedUser) {
+      if (authenticatedUser && typeof authenticatedUser !== 'string') {
         setUser(authenticatedUser);
-        setIsUnapproved(false);
-      } else {
-        // If signIn returns null, it means profile fetch failed (user unapproved)
+        setAuthStatus('approved');
+      } else if (authenticatedUser === 'rejected') {
         setUser(null);
-        setIsUnapproved(true);
+        setAuthStatus('rejected');
+      } else {
+        // If signIn returns 'pending' or null, treat as pending for now
+        setUser(null);
+        setAuthStatus('pending');
       }
     } catch (err: any) {
       const errorMessage = err.message || "Sign in failed";
@@ -219,7 +242,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setIsLoading(true);
       await authService.signOut();
       setUser(null);
-      setIsUnapproved(false);
+      setAuthStatus(null);
       console.log('signout completed');
     } catch (err: any) {
       const errorMessage = err.message || "Sign out failed";
@@ -231,16 +254,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  const isUnapproved = authStatus === 'pending';
+
   return (
     <AuthContext.Provider
       value={{
         user,
+        authStatus,
         isUnapproved,
         isLoading,
         error,
         signUp,
         signIn,
         signOut,
+        refreshAuth,
       }}
     >
       {children}

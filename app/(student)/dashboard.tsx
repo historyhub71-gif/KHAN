@@ -1,8 +1,10 @@
 import { useFocusEffect } from '@react-navigation/native';
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Href, useRouter } from 'expo-router';
 import {
+    RefreshControl,
+    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -10,18 +12,31 @@ import {
 } from 'react-native';
 import { ScreenContainer } from '../../component/common/ScreenContainer';
 import { StudentCourseList } from '../../component/student/CourseCard';
+import { NotificationList } from '../../component/student/NotificationList';
+import { StudentOverviewCard } from '../../component/student/StudentOverviewCard';
+import { useNotificationContext } from '../../context/NotificationContext';
 import { useAuth } from '../../hooks/useAuth';
 import { useCourses } from '../../hooks/useCourses';
-import { Course } from '../../types';
+import { useStudentOverview } from '../../hooks/useStudentOverview';
+import { Course, Notification } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
 
 export default function StudentDashboardScreen() {
   const { user, signOut, isLoading: authLoading } = useAuth();
-  const { colors } = useTheme();
+  const { colors, isDark, toggleTheme } = useTheme();
   const router = useRouter();
   const { courses, isLoading, fetchCourses } = useCourses('student');
+  const { overview, isLoading: overviewLoading, fetchOverview } = useStudentOverview(user?.id);
+  const [refreshing, setRefreshing] = useState(false);
+  const {
+    notifications,
+    unreadCount,
+    isLoading: notifLoading,
+    error: notifError,
+    markRead,
+    refresh: refreshNotifications,
+  } = useNotificationContext();
 
-  // Redirect if not approved
   useEffect(() => {
     if (user && !user.approved) {
       router.replace('/(auth)/pending-approval');
@@ -38,15 +53,34 @@ export default function StudentDashboardScreen() {
     useCallback(() => {
       if (user?.id) {
         fetchCourses(user.id);
+        fetchOverview();
       }
-    }, [user?.id, fetchCourses])
+    }, [user?.id])
   );
+
+  const onRefresh = async () => {
+    if (!user?.id) return;
+    setRefreshing(true);
+    await Promise.all([
+      fetchCourses(user.id),
+      fetchOverview(),
+      refreshNotifications(),
+    ]);
+    setRefreshing(false);
+  };
 
   const handleNavigateToCourse = (course: Course) => {
     router.push({
       pathname: '/(student)/courses/[id]',
       params: { id: course.id },
     });
+  };
+
+  const handleNotificationPress = async (item: Notification) => {
+    if (!item.read) {
+      await markRead(item.id);
+    }
+    router.push('/(student)/notifications' as Href);
   };
 
   const handleLogout = async () => {
@@ -60,11 +94,16 @@ export default function StudentDashboardScreen() {
 
   return (
     <ScreenContainer>
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* Header */}
+      <ScrollView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+        }
+      >
         <View style={styles.header}>
           <TouchableOpacity
-            style={[styles.logoutButton, { backgroundColor: colors.surface, borderColor: colors.danger + '40' }]}
+            style={[styles.iconButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={handleLogout}
             activeOpacity={0.7}
           >
@@ -74,13 +113,55 @@ export default function StudentDashboardScreen() {
             <Text style={[styles.greeting, { color: colors.textSecondary }]}>Welcome back,</Text>
             <Text style={[styles.userName, { color: colors.text }]}>{user?.name}</Text>
           </View>
-          <View style={[styles.roleBadge, { backgroundColor: colors.secondary + '10' }]}>
-            <Text style={[styles.roleBadgeText, { color: colors.secondary }]}>STUDENT</Text>
-          </View>
+          <TouchableOpacity
+            style={[styles.iconButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={toggleTheme}
+          >
+            <MaterialIcons
+              name={isDark ? 'light-mode' : 'dark-mode'}
+              size={22}
+              color={colors.text}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.iconButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => router.push('/(student)/notifications' as Href)}
+          >
+            <MaterialIcons name="notifications" size={22} color={colors.primary} />
+            {unreadCount > 0 && (
+              <View style={[styles.badge, { backgroundColor: colors.danger }]}>
+                <Text style={styles.badgeText}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
 
-        {/* Courses List */}
+        <StudentOverviewCard overview={overview} isLoading={overviewLoading} />
+
+        {notifError && (
+          <View style={[styles.errorBanner, { backgroundColor: colors.danger + '15' }]}>
+            <Text style={[styles.errorText, { color: colors.danger }]}>
+              Alerts unavailable: {notifError}. Run supabase/migrations/003 and 004 in Supabase SQL Editor.
+            </Text>
+          </View>
+        )}
+
         <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent alerts</Text>
+          <TouchableOpacity onPress={() => router.push('/(student)/notifications' as Href)}>
+            <Text style={[styles.seeAll, { color: colors.primary }]}>See all</Text>
+          </TouchableOpacity>
+        </View>
+        <NotificationList
+          notifications={notifications}
+          isLoading={notifLoading}
+          onPress={handleNotificationPress}
+          compact
+        />
+
+        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Courses</Text>
           <View style={[styles.countBadge, { backgroundColor: colors.surface }]}>
             <Text style={[styles.countText, { color: colors.textSecondary }]}>{courses.length}</Text>
@@ -92,7 +173,7 @@ export default function StudentDashboardScreen() {
           isLoading={isLoading}
           onCoursePress={handleNavigateToCourse}
         />
-      </View>
+      </ScrollView>
     </ScreenContainer>
   );
 }
@@ -105,13 +186,13 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 32,
-    gap: 12,
+    marginBottom: 24,
+    gap: 8,
   },
-  logoutButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
@@ -129,24 +210,35 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
   },
-  roleBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+  badge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
   },
-  roleBadgeText: {
+  badgeText: {
+    color: '#fff',
     fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 0.5,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'space-between',
+    marginBottom: 12,
     gap: 8,
   },
   sectionTitle: {
     fontSize: 18,
+    fontWeight: '700',
+  },
+  seeAll: {
+    fontSize: 13,
     fontWeight: '700',
   },
   countBadge: {
@@ -157,5 +249,15 @@ const styles = StyleSheet.create({
   countText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  errorBanner: {
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 16,
+  },
+  errorText: {
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 18,
   },
 });

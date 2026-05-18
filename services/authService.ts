@@ -11,71 +11,100 @@ export const authService = {
     try {
       console.log('[authService.signUp] Starting signup for email:', email);
       
+      let userId: string;
+      let userEmail = email;
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
       });
 
       if (authError) {
-        console.error('[authService.signUp] signUp error:', authError);
-        throw authError;
-      }
-      
-      if (!authData.user) {
-        throw new Error('User creation failed');
-      }
+        if (authError.message.includes('User already registered')) {
+          console.log('[authService.signUp] User already registered. Attempting sign-in instead.');
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
 
-      console.log('[authService.signUp] User created, ID:', authData.user.id);
-      console.log('[authService.signUp] Session available:', !!authData.session);
-
-      let userId = authData.user.id;
-      let userEmail = authData.user.email || email;
-
-      // If signup didn't return a session, try to sign in
-      if (!authData.session) {
-        console.log('[authService.signUp] No session from signup, attempting signin');
-        
-        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (signInError) {
-          console.error('[authService.signUp] signIn error:', signInError);
-          throw signInError;
+          if (signInError) {
+            console.error('[authService.signUp] signIn error for existing user:', signInError);
+            throw signInError;
+          }
+          
+          if (!signInData.user) throw new Error('User sign-in failed after registration check');
+          userId = signInData.user.id;
+          userEmail = signInData.user.email || email;
+        } else {
+          console.error('[authService.signUp] signUp error:', authError);
+          throw authError;
+        }
+      } else {
+        if (!authData.user) {
+          throw new Error('User creation failed');
         }
 
-        console.log('[authService.signUp] SignIn successful');
-        userId = signInData.user?.id || userId;
-        userEmail = signInData.user?.email || userEmail;
+        userId = authData.user.id;
+        userEmail = authData.user.email || email;
+
+        // If signup didn't return a session, try to sign in
+        if (!authData.session) {
+          console.log('[authService.signUp] No session from signup, attempting signin');
+          
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+
+          if (signInError) {
+            console.error('[authService.signUp] signIn error:', signInError);
+            throw signInError;
+          }
+
+          console.log('[authService.signUp] SignIn successful');
+          userId = signInData.user?.id || userId;
+          userEmail = signInData.user?.email || userEmail;
+        }
       }
 
-      console.log('[authService.signUp] Inserting profile for userId:', userId);
-
-      const { data: profileData, error: profileError } = await supabase
+      // CHECK PROFILE STATUS BEFORE UPSERT TO PREVENT RE-REGISTERING REJECTED USERS
+      const { data: existingProfile, error: existingProfileError } = await supabase
         .from('profiles')
-        .insert({
+        .select('status')
+        .eq('id', userId)
+        .single();
+
+      if (!existingProfileError && existingProfile?.status === 'rejected') {
+        throw new Error('This account request was previously rejected.');
+      }
+
+      console.log('[authService.signUp] Upserting profile for userId:', userId);
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
           id: userId,
           email: userEmail,
           name,
           role,
           approved: false,
-        });
+          status: 'pending',
+        }, { onConflict: 'id', ignoreDuplicates: true });
 
       if (profileError) {
-        console.error('[authService.signUp] Profile insert error:', profileError);
+        console.error('[authService.signUp] Profile upsert error:', profileError);
         throw profileError;
       }
 
-      console.log('[authService.signUp] Profile created successfully');
-      return { id: userId, email: userEmail, name, role, approved: false };
+      console.log('[authService.signUp] Profile handled successfully');
+      return { id: userId, email: userEmail, name, role, approved: false, status: 'pending' };
     } catch (error) {
       console.error('[authService.signUp] Caught error:', error);
       throw error;
     }
   },
 
-  signIn: async (email: string, password: string): Promise<AuthUser | null> => {
+  signIn: async (email: string, password: string): Promise<AuthUser | 'pending' | 'rejected' | null> => {
     try {
       console.log('[authService] Starting sign-in for email:', email);
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -97,16 +126,19 @@ export const authService = {
         .single();
 
       if (profileError) {
-        // If profile fetch fails due to RLS (user not approved), return null
         if (profileError.code === 'PGRST116' || profileError.message?.includes('permission denied')) {
-          console.log('[authService] Profile fetch failed due to RLS - user likely unapproved');
-          return null;
+          console.log('[authService] Profile not found. Pushing error as requested.');
+          throw new Error('Account not found. Your request may have been rejected or deleted.');
         }
         console.error('[authService] Profile fetch error:', profileError);
         throw profileError;
       }
 
       console.log('[authService] Profile fetched successfully:', profileData);
+      
+      if (profileData.status === 'rejected') return 'rejected';
+      if (profileData.status === 'pending' || !profileData.approved) return 'pending';
+      
       return profileData as AuthUser;
     } catch (error) {
       console.error('[authService] Sign-in failed:', error);
@@ -119,7 +151,7 @@ export const authService = {
     if (error) throw error;
   },
 
-  getCurrentUser: async (): Promise<AuthUser | 'unapproved' | null> => {
+  getCurrentUser: async (): Promise<AuthUser | 'pending' | 'rejected' | null> => {
     try {
       console.log('[authService] getCurrentUser starting...');
       const {
@@ -147,15 +179,18 @@ export const authService = {
 
       if (error) {
         console.log('[authService] Profile fetch error code:', error.code);
-        // If profile fetch fails due to RLS (user not approved), return 'unapproved'
         if (error.code === 'PGRST116' || error.message?.includes('permission denied')) {
-          console.log('[authService] User is unapproved (RLS restriction)');
-          return 'unapproved';
+          console.log('[authService] Profile not found. Returning null to force logout.');
+          return null;
         }
         throw error;
       }
 
       console.log('[authService] Profile found:', profileData.role);
+      
+      if (profileData.status === 'rejected') return 'rejected';
+      if (profileData.status === 'pending' || !profileData.approved) return 'pending';
+      
       return profileData as AuthUser;
     } catch (error) {
       console.error('[authService] getCurrentUser error:', error);

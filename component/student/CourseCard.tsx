@@ -25,7 +25,7 @@ export const StudentCourseList: React.FC<StudentCourseListProps> = ({
 }) => {
   const { colors } = useTheme();
 
-  if (isLoading) {
+  if (isLoading && courses.length === 0) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -47,6 +47,7 @@ export const StudentCourseList: React.FC<StudentCourseListProps> = ({
       data={courses}
       keyExtractor={(item) => item.id}
       showsVerticalScrollIndicator={false}
+      scrollEnabled={false}
       renderItem={({ item }) => (
         <TouchableOpacity
           style={[styles.courseCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
@@ -59,6 +60,12 @@ export const StudentCourseList: React.FC<StudentCourseListProps> = ({
 
           <View style={styles.courseInfo}>
             <Text style={[styles.courseName, { color: colors.text }]}>{item.name}</Text>
+            <View style={styles.teacherRow}>
+              <MaterialIcons name="person" size={14} color={colors.textSecondary} style={{ marginRight: 4 }} />
+              <Text style={[styles.teacherLabel, { color: colors.textSecondary }]}>
+                Teacher: <Text style={styles.teacherValue}>{item.teacher_name || 'Not Assigned'}</Text>
+              </Text>
+            </View>
             <Text style={[styles.courseCode, { color: colors.textSecondary }]}>{item.code}</Text>
           </View>
 
@@ -114,6 +121,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 4,
+  },
+  teacherRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  teacherLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  teacherValue: {
+    fontWeight: '700',
   },
   courseCode: {
     fontSize: 13,

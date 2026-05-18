@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     TextInput as RNTextInput,
     StyleSheet,
@@ -6,7 +6,9 @@ import {
     TextInputProps,
     View,
     ViewStyle,
+    TouchableOpacity,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../context/ThemeContext';
 
 interface InputProps extends TextInputProps {
@@ -23,9 +25,16 @@ export const TextInput: React.FC<InputProps> = ({
   containerStyle,
   leftIcon,
   rightIcon,
+  secureTextEntry,
   ...rest
 }) => {
   const { colors } = useTheme();
+  const [isSecure, setIsSecure] = useState(secureTextEntry);
+
+  // Synchronize state if secureTextEntry prop changes from parent
+  useEffect(() => {
+    setIsSecure(secureTextEntry);
+  }, [secureTextEntry]);
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -46,9 +55,25 @@ export const TextInput: React.FC<InputProps> = ({
             { color: colors.text },
           ]}
           placeholderTextColor={colors.textSecondary}
+          secureTextEntry={isSecure}
           {...rest}
         />
-        {rightIcon && <View style={styles.iconContainer}>{rightIcon}</View>}
+        {rightIcon ? (
+          <View style={styles.iconContainerRight}>{rightIcon}</View>
+        ) : secureTextEntry !== undefined ? (
+          <TouchableOpacity
+            onPress={() => setIsSecure(prev => !prev)}
+            activeOpacity={0.6}
+            style={styles.eyeButton}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons
+              name={isSecure ? "eye-off" : "eye"}
+              size={22}
+              color={colors.textSecondary}
+            />
+          </TouchableOpacity>
+        ) : null}
       </View>
       {error && <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>}
     </View>
@@ -74,6 +99,17 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconContainerRight: {
+    marginLeft: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  eyeButton: {
+    marginLeft: 12,
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },

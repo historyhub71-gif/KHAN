@@ -13,8 +13,8 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://psbklzpvrolunntszfdm.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_KEY": "sb_publishable_Dpu25Zx2434HFWc0v4TkPg_ELGDkqrZ"
+        "EXPO_PUBLIC_SUPABASE_URL": "https://hevtjydsogadszcwdhhn.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_KEY": "sb_publishable_uENAcIvAs1xj0bRsuuqkIw_DLWitRxf"
       }
     },
     "production": {}

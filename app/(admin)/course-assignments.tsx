@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import {
     Alert,
     FlatList,
@@ -10,6 +10,7 @@ import {
     Text,
     TouchableOpacity,
     View,
+    TextInput,
 } from 'react-native';
 import { UserList } from '../../component/admin/UserList';
 import { Button } from '../../component/common/Button';
@@ -29,6 +30,91 @@ export default function CourseAssignmentsScreen() {
   const [showTeacherModal, setShowTeacherModal] = useState(false);
   const [showStudentModal, setShowStudentModal] = useState(false);
 
+  const [teacherSearchQuery, setTeacherSearchQuery] = useState('');
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [selectedTeacherIds, setSelectedTeacherIds] = useState<Set<string>>(new Set());
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+
+  const filteredTeachers = useMemo(() => {
+    return availableTeachers.filter(t => 
+      t.name?.toLowerCase().includes(teacherSearchQuery.toLowerCase()) ||
+      t.email?.toLowerCase().includes(teacherSearchQuery.toLowerCase())
+    );
+  }, [availableTeachers, teacherSearchQuery]);
+
+  const filteredStudents = useMemo(() => {
+    return availableStudents.filter(s => 
+      s.name?.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
+      s.email?.toLowerCase().includes(studentSearchQuery.toLowerCase())
+    );
+  }, [availableStudents, studentSearchQuery]);
+
+  const toggleTeacherSelection = useCallback((id: string) => {
+    setSelectedTeacherIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleStudentSelection = useCallback((id: string) => {
+    setSelectedStudentIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleSelectAllTeachers = () => {
+    const newSelected = new Set(selectedTeacherIds);
+    filteredTeachers.forEach(t => newSelected.add(t.id));
+    setSelectedTeacherIds(newSelected);
+  };
+
+  const handleClearTeacherSelection = () => {
+    setSelectedTeacherIds(new Set());
+  };
+
+  const handleSelectAllStudents = () => {
+    const newSelected = new Set(selectedStudentIds);
+    filteredStudents.forEach(s => newSelected.add(s.id));
+    setSelectedStudentIds(newSelected);
+  };
+
+  const handleClearStudentSelection = () => {
+    setSelectedStudentIds(new Set());
+  };
+
+  const handleAssignMultipleTeachers = async () => {
+    if (!courseId || selectedTeacherIds.size === 0) return;
+    try {
+      await adminService.assignMultipleTeachersToCourse(courseId, Array.from(selectedTeacherIds));
+      setShowTeacherModal(false);
+      setSelectedTeacherIds(new Set());
+      setTeacherSearchQuery('');
+      fetchData();
+      Alert.alert('Success', 'Teachers assigned successfully');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to assign teachers');
+    }
+  };
+
+  const handleAssignMultipleStudents = async () => {
+    if (!courseId || selectedStudentIds.size === 0) return;
+    try {
+      await adminService.assignMultipleStudentsToCourse(courseId, Array.from(selectedStudentIds));
+      setShowStudentModal(false);
+      setSelectedStudentIds(new Set());
+      setStudentSearchQuery('');
+      fetchData();
+      Alert.alert('Success', 'Students assigned successfully');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to assign students');
+    }
+  };
+
   const fetchData = useCallback(async () => {
     if (!courseId) return;
 
@@ -47,11 +133,11 @@ export default function CourseAssignmentsScreen() {
       setAssignedStudents(students);
 
       // Filter out already assigned users
-      const assignedTeacherIds = new Set(teachers.map(t => t.id));
-      const assignedStudentIds = new Set(students.map(s => s.id));
+      const assignedTeacherIds = new Set(teachers.filter(Boolean).map(t => t.id));
+      const assignedStudentIds = new Set(students.filter(Boolean).map(s => s.id));
 
-      setAvailableTeachers(allTeachers.filter(t => t.approved && !assignedTeacherIds.has(t.id)));
-      setAvailableStudents(allStudents.filter(s => s.approved && !assignedStudentIds.has(s.id)));
+      setAvailableTeachers(allTeachers.filter(t => t && t.id && t.approved && !assignedTeacherIds.has(t.id)));
+      setAvailableStudents(allStudents.filter(s => s && s.id && !assignedStudentIds.has(s.id)));
     } catch (err) {
       console.error(err);
       Alert.alert('Error', 'Failed to load course assignments');
@@ -68,18 +154,6 @@ export default function CourseAssignmentsScreen() {
     }, [courseId, fetchData])
   );
 
-  const handleAssignTeacher = async (teacher: Profile) => {
-    if (!courseId) return;
-
-    try {
-      await adminService.assignTeacherToCourse(courseId, teacher.id);
-      setShowTeacherModal(false);
-      fetchData();
-      Alert.alert('Success', 'Teacher assigned successfully');
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to assign teacher');
-    }
-  };
 
   const handleRemoveTeacher = (teacherId: string) => {
     if (!courseId) return;
@@ -102,18 +176,6 @@ export default function CourseAssignmentsScreen() {
     ]);
   };
 
-  const handleAssignStudent = async (student: Profile) => {
-    if (!courseId) return;
-
-    try {
-      await adminService.assignStudentToCourse(courseId, student.id);
-      setShowStudentModal(false);
-      fetchData();
-      Alert.alert('Success', 'Student assigned successfully');
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to assign student');
-    }
-  };
 
   const handleRemoveStudent = (studentId: string) => {
     if (!courseId) return;
@@ -239,13 +301,21 @@ export default function CourseAssignmentsScreen() {
       <Modal
         visible={showTeacherModal}
         animationType="slide"
-        onRequestClose={() => setShowTeacherModal(false)}
+        onRequestClose={() => {
+          setShowTeacherModal(false);
+          setSelectedTeacherIds(new Set());
+          setTeacherSearchQuery('');
+        }}
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.white }}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Teacher to Assign</Text>
+            <Text style={styles.modalTitle}>Assign Teachers</Text>
             <TouchableOpacity
-              onPress={() => setShowTeacherModal(false)}
+              onPress={() => {
+                setShowTeacherModal(false);
+                setSelectedTeacherIds(new Set());
+                setTeacherSearchQuery('');
+              }}
               hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
               style={styles.closeButton}
             >
@@ -253,11 +323,42 @@ export default function CourseAssignmentsScreen() {
             </TouchableOpacity>
           </View>
 
+          <View style={styles.modalControls}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search teachers..."
+              placeholderTextColor={Colors.gray}
+              value={teacherSearchQuery}
+              onChangeText={setTeacherSearchQuery}
+            />
+            <View style={styles.selectionBar}>
+              <Text style={styles.selectionCount}>{selectedTeacherIds.size} Selected</Text>
+              <View style={styles.selectionActions}>
+                <TouchableOpacity onPress={handleSelectAllTeachers}>
+                  <Text style={styles.selectionActionText}>Select All</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleClearTeacherSelection}>
+                  <Text style={styles.selectionActionText}>Clear</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
           <UserList
-            users={availableTeachers}
+            users={filteredTeachers}
             isLoading={false}
-            onUserPress={handleAssignTeacher}
+            selectable={true}
+            selectedIds={selectedTeacherIds}
+            onToggleSelect={toggleTeacherSelection}
           />
+
+          <View style={styles.modalFooter}>
+            <Button
+              title={`Assign ${selectedTeacherIds.size} Teacher(s)`}
+              onPress={handleAssignMultipleTeachers}
+              disabled={selectedTeacherIds.size === 0}
+            />
+          </View>
         </SafeAreaView>
       </Modal>
 
@@ -265,13 +366,21 @@ export default function CourseAssignmentsScreen() {
       <Modal
         visible={showStudentModal}
         animationType="slide"
-        onRequestClose={() => setShowStudentModal(false)}
+        onRequestClose={() => {
+          setShowStudentModal(false);
+          setSelectedStudentIds(new Set());
+          setStudentSearchQuery('');
+        }}
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: Colors.white }}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Student to Assign</Text>
+            <Text style={styles.modalTitle}>Assign Students</Text>
             <TouchableOpacity
-              onPress={() => setShowStudentModal(false)}
+              onPress={() => {
+                setShowStudentModal(false);
+                setSelectedStudentIds(new Set());
+                setStudentSearchQuery('');
+              }}
               hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
               style={styles.closeButton}
             >
@@ -279,11 +388,42 @@ export default function CourseAssignmentsScreen() {
             </TouchableOpacity>
           </View>
 
+          <View style={styles.modalControls}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search students..."
+              placeholderTextColor={Colors.gray}
+              value={studentSearchQuery}
+              onChangeText={setStudentSearchQuery}
+            />
+            <View style={styles.selectionBar}>
+              <Text style={styles.selectionCount}>{selectedStudentIds.size} Selected</Text>
+              <View style={styles.selectionActions}>
+                <TouchableOpacity onPress={handleSelectAllStudents}>
+                  <Text style={styles.selectionActionText}>Select All</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleClearStudentSelection}>
+                  <Text style={styles.selectionActionText}>Clear</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
           <UserList
-            users={availableStudents}
+            users={filteredStudents}
             isLoading={false}
-            onUserPress={handleAssignStudent}
+            selectable={true}
+            selectedIds={selectedStudentIds}
+            onToggleSelect={toggleStudentSelection}
           />
+
+          <View style={styles.modalFooter}>
+            <Button
+              title={`Assign ${selectedStudentIds.size} Student(s)`}
+              onPress={handleAssignMultipleStudents}
+              disabled={selectedStudentIds.size === 0}
+            />
+          </View>
         </SafeAreaView>
       </Modal>
     </ScreenContainer>
@@ -300,7 +440,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   courseHeader: {
-    backgroundColor: Colors.light,
+    backgroundColor: Colors.lightGray,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -381,7 +521,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.light,
+    borderBottomColor: Colors.lightGray,
   },
   closeButton: {
     padding: 6,
@@ -392,5 +532,39 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: Colors.dark,
+  },
+  modalFooter: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: Colors.lightGray,
+  },
+  modalControls: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.lightGray,
+  },
+  searchInput: {
+    backgroundColor: Colors.lightGray,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    fontSize: 16,
+  },
+  selectionBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  selectionCount: {
+    fontWeight: '600',
+    color: Colors.primary,
+  },
+  selectionActions: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  selectionActionText: {
+    color: Colors.primary,
+    fontWeight: '600',
   },
 });

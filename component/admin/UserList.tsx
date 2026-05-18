@@ -18,7 +18,10 @@ interface UserListProps {
   onUserPress?: (user: Profile) => void;
   onDeletePress?: (userId: string) => void;
   onApprovePress?: (userId: string) => void;
-  onDisapprovePress?: (userId: string) => void;
+  onRejectPress?: (userId: string) => void;
+  selectable?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (userId: string) => void;
 }
 
 export const UserList: React.FC<UserListProps> = ({
@@ -27,7 +30,10 @@ export const UserList: React.FC<UserListProps> = ({
   onUserPress,
   onDeletePress,
   onApprovePress,
-  onDisapprovePress,
+  onRejectPress,
+  selectable,
+  selectedIds,
+  onToggleSelect,
 }) => {
   const { colors } = useTheme();
 
@@ -48,67 +54,104 @@ export const UserList: React.FC<UserListProps> = ({
       data={users}
       keyExtractor={(item) => item.id}
       showsVerticalScrollIndicator={false}
-      renderItem={({ item }) => (
-        <TouchableOpacity
-          style={[styles.userCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          onPress={() => onUserPress?.(item)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.userInfo}>
-            <View style={styles.nameRow}>
-              <Text style={[styles.userName, { color: colors.text }]}>{item.name}</Text>
-              {!item.approved && (
-                <View style={[styles.pendingBadge, { backgroundColor: colors.warning + '15' }]}>
-                  <Text style={[styles.pendingBadgeText, { color: colors.warning }]}>Pending</Text>
-                </View>
-              )}
+      renderItem={({ item }) => {
+        const isSelected = selectedIds?.has(item.id);
+        
+        return (
+          <TouchableOpacity
+            style={[
+              styles.userCard, 
+              { backgroundColor: colors.surface, borderColor: isSelected ? colors.primary : colors.border },
+              isSelected && { borderWidth: 2 }
+            ]}
+            onPress={() => {
+              if (selectable && onToggleSelect) {
+                onToggleSelect(item.id);
+              } else {
+                onUserPress?.(item);
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <View style={styles.userInfo}>
+              <View style={styles.nameRow}>
+                <Text style={[styles.userName, { color: colors.text }]}>{item.name || 'Unnamed User'}</Text>
+                {!item.approved && (
+                  <View style={[styles.pendingBadge, { backgroundColor: colors.warning + '15' }]}>
+                    <Text style={[styles.pendingBadgeText, { color: colors.warning }]}>Pending</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{item.email}</Text>
+              <View style={[styles.roleLabel, { backgroundColor: colors.background }]}>
+                <Text style={[styles.roleLabelText, { color: colors.textSecondary }]}>
+                  {item.role?.toUpperCase() || 'USER'}
+                </Text>
+              </View>
             </View>
-            <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{item.email}</Text>
-            <View style={[styles.roleLabel, { backgroundColor: colors.background }]}>
-              <Text style={[styles.roleLabelText, { color: colors.textSecondary }]}>
-                {item.role?.toUpperCase() || 'USER'}
-              </Text>
-            </View>
-          </View>
 
-          <View style={styles.actions}>
-            {!item.approved && onApprovePress && (
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: colors.success + '10' }]}
-                onPress={() => onApprovePress(item.id)}
-              >
-                <MaterialIcons
-                  name="check"
-                  size={20}
-                  color={colors.success}
+            {selectable ? (
+              <View style={styles.checkboxContainer}>
+                <MaterialIcons 
+                  name={isSelected ? "check-circle" : "radio-button-unchecked"} 
+                  size={24} 
+                  color={isSelected ? colors.primary : colors.textSecondary + '50'} 
                 />
-              </TouchableOpacity>
-            )}
+              </View>
+            ) : (
+              <View style={styles.actions}>
+                {!item.approved && onApprovePress && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: colors.success + '10' }]}
+                    onPress={() => onApprovePress(item.id)}
+                  >
+                    <MaterialIcons
+                      name="check"
+                      size={20}
+                      color={colors.success}
+                    />
+                  </TouchableOpacity>
+                )}
 
-            {item.approved && onDisapprovePress && (
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: colors.warning + '10' }]}
-                onPress={() => onDisapprovePress(item.id)}
-              >
-                <MaterialIcons
-                  name="block"
-                  size={18}
-                  color={colors.warning}
-                />
-              </TouchableOpacity>
-            )}
+                {item.approved && onRejectPress && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: colors.warning + '10' }]}
+                    onPress={() => onRejectPress(item.id)}
+                  >
+                    <MaterialIcons
+                      name="block"
+                      size={18}
+                      color={colors.warning}
+                    />
+                  </TouchableOpacity>
+                )}
 
-            {onDeletePress && (
-              <TouchableOpacity
-                style={[styles.actionButton, { backgroundColor: colors.danger + '10' }]}
-                onPress={() => onDeletePress(item.id)}
-              >
-                <MaterialIcons name="delete-outline" size={20} color={colors.danger} />
-              </TouchableOpacity>
+                {!item.approved && onRejectPress && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: colors.danger + '10' }]}
+                    onPress={() => onRejectPress(item.id)}
+                  >
+                    <MaterialIcons
+                      name="close"
+                      size={20}
+                      color={colors.danger}
+                    />
+                  </TouchableOpacity>
+                )}
+
+                {onDeletePress && (
+                  <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: colors.danger + '10' }]}
+                    onPress={() => onDeletePress(item.id)}
+                  >
+                    <MaterialIcons name="delete-outline" size={20} color={colors.danger} />
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
-          </View>
-        </TouchableOpacity>
-      )}
+          </TouchableOpacity>
+        );
+      }}
       contentContainerStyle={styles.listContainer}
     />
   );
@@ -186,5 +229,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  checkboxContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingLeft: 12,
   },
 });

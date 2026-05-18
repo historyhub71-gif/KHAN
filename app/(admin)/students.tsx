@@ -63,19 +63,19 @@ export default function StudentsScreen() {
     }
   };
 
-  const handleDisapprove = async (studentId: string) => {
-    Alert.alert('Disapprove Student', 'Are you sure you want to disapprove this student? They will lose access to the system.', [
+  const handleReject = async (studentId: string) => {
+    Alert.alert('Reject Student', 'Are you sure you want to reject this student? They will lose access to the system.', [
       { text: 'Cancel' },
       {
-        text: 'Disapprove',
+        text: 'Reject',
         style: 'destructive',
         onPress: async () => {
           try {
-            await adminService.disapproveStudent(studentId);
+            await adminService.rejectStudent(studentId);
             fetchStudents();
-            Alert.alert('Success', 'Student disapproved successfully');
+            Alert.alert('Success', 'Student rejected successfully');
           } catch (err) {
-            Alert.alert('Error', 'Failed to disapprove student');
+            Alert.alert('Error', 'Failed to reject student');
           }
         },
       },
@@ -97,7 +97,7 @@ export default function StudentsScreen() {
           isLoading={isLoading}
           onDeletePress={handleDelete}
           onApprovePress={handleApprove}
-          onDisapprovePress={handleDisapprove}
+          onRejectPress={handleReject}
         />
       </View>
     </ScreenContainer>

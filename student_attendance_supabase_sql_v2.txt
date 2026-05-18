@@ -286,6 +286,36 @@ WITH CHECK (
 
 
 =================================================
+SECTION 6: NOTIFICATIONS & ANALYTICS (RUN AFTER SECTION 1-4)
+=================================================
+
+Run the full migration file in your repo:
+  supabase/migrations/003_notifications_analytics.sql
+
+Or run that file in Supabase SQL Editor. It includes:
+
+1. Unique constraint on attendance (course_id, student_id, date)
+2. notifications table + indexes
+3. Trigger: auto-insert notification when student marked absent
+4. Tightened attendance SELECT policies (student/teacher/admin scoped)
+5. notifications RLS policies
+6. Realtime publication for notifications table
+
+MANUAL STEPS IN SUPABASE DASHBOARD:
+- Database → Replication → ensure "notifications" is enabled for Realtime
+  (if ALTER PUBLICATION fails, toggle it in the UI)
+- After migration, test: teacher marks absent → row appears in notifications
+
+APP SETUP:
+- npm: expo-notifications and expo-device (already in package.json after install)
+- Run SQL migration before testing in-app alerts
+
+IF STUDENTS DO NOT GET ALERTS:
+- Run supabase/migrations/004_notifications_fix.sql in Supabase SQL Editor
+- Reload the app; teacher marks student Absent again
+- App also creates notifications from the teacher device when absent is saved
+
+=================================================
 END OF DOCUMENT
 =================================================
 

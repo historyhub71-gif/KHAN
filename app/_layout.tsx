@@ -1,5 +1,6 @@
 import { Stack } from "expo-router";
 import { AuthProvider, AuthContext } from "../context/AuthContext";
+import { NotificationProvider } from "../context/NotificationContext";
 import { ThemeProvider } from "../context/ThemeContext";
 import * as SplashScreen from 'expo-splash-screen';
 import { useContext, useEffect } from "react";
@@ -23,7 +24,9 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <RootLayoutContent />
+        <NotificationProvider>
+          <RootLayoutContent />
+        </NotificationProvider>
       </AuthProvider>
     </ThemeProvider>
   );

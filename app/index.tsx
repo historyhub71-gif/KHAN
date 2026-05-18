@@ -6,13 +6,13 @@ import { useTheme } from "../context/ThemeContext";
 import { MaterialIcons } from "@expo/vector-icons";
 
 export default function Index() {
-  const { user, isUnapproved, isLoading, error, refreshAuth } = useContext(AuthContext);
+  const { user, authStatus, isLoading, error, refreshAuth } = useContext(AuthContext);
   const { colors } = useTheme();
   const router = useRouter();
   const [showRetry, setShowRetry] = useState(false);
 
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: any;
     if (isLoading) {
       timer = setTimeout(() => {
         setShowRetry(true);
@@ -25,8 +25,10 @@ export default function Index() {
 
   useEffect(() => {
     if (!isLoading) {
-      if (isUnapproved) {
+      if (authStatus === 'pending') {
         router.replace("/(auth)/pending-approval");
+      } else if (authStatus === 'rejected') {
+        router.replace("/(auth)/rejected");
       } else if (!user) {
         router.replace("/(auth)/login");
       } else {
@@ -39,7 +41,7 @@ export default function Index() {
         }
       }
     }
-  }, [user, isUnapproved, isLoading]);
+  }, [user, authStatus, isLoading]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

@@ -30,3 +30,9 @@ export const ATTENDANCE_LABELS = {
   present: 'Present',
   absent: 'Absent',
 } as const;
+
+/** Minimum absences to flag as frequently absent */
+export const FREQUENT_ABSENT_THRESHOLD = 3;
+
+export const APP_NAME = 'HASHIR KHAN Attendance';
+export const APP_TAGLINE = 'Student Attendance Management System';

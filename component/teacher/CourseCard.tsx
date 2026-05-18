@@ -47,6 +47,7 @@ export const TeacherCourseList: React.FC<TeacherCourseListProps> = ({
       data={courses}
       keyExtractor={(item) => item.id}
       showsVerticalScrollIndicator={false}
+      scrollEnabled={false}
       renderItem={({ item }) => (
         <TouchableOpacity
           style={[styles.courseCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
