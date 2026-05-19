@@ -1,7 +1,13 @@
 import React, { createContext, useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authService } from "../services/authService";
 import { AuthUser } from "../types";
 import { supabase } from "../utils/supabase";
+
+const CACHE_KEYS = {
+  USER: '@attendance_tracker_cached_user',
+  STATUS: '@attendance_tracker_cached_status',
+};
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -38,6 +44,31 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const saveCache = async (cachedUser: AuthUser | null, status: string | null) => {
+    try {
+      if (cachedUser) {
+        await AsyncStorage.setItem(CACHE_KEYS.USER, JSON.stringify(cachedUser));
+      } else {
+        await AsyncStorage.removeItem(CACHE_KEYS.USER);
+      }
+      if (status) {
+        await AsyncStorage.setItem(CACHE_KEYS.STATUS, status);
+      } else {
+        await AsyncStorage.removeItem(CACHE_KEYS.STATUS);
+      }
+    } catch (e) {
+      console.error('[AuthContext] Failed to save auth cache:', e);
+    }
+  };
+
+  const clearCache = async () => {
+    try {
+      await AsyncStorage.multiRemove([CACHE_KEYS.USER, CACHE_KEYS.STATUS]);
+    } catch (e) {
+      console.error('[AuthContext] Failed to clear auth cache:', e);
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -47,19 +78,36 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setIsLoading(true);
         setError(null);
 
-        // Timeout promise - increased to 30 seconds for slow connections
+        // 1. FAST PATH: Load cached credentials instantly
+        try {
+          const [cachedUserStr, cachedStatus] = await Promise.all([
+            AsyncStorage.getItem(CACHE_KEYS.USER),
+            AsyncStorage.getItem(CACHE_KEYS.STATUS),
+          ]);
+          
+          if (cachedUserStr && cachedStatus && isMounted) {
+            const cachedUser = JSON.parse(cachedUserStr) as AuthUser;
+            console.log('[AuthContext] Loaded cached user profile:', cachedUser.role);
+            setUser(cachedUser);
+            setAuthStatus(cachedStatus as any);
+            setIsLoading(false); // Transitions instantly to dashboard!
+          }
+        } catch (cacheErr) {
+          console.error('[AuthContext] Error loading auth cache:', cacheErr);
+        }
+
+        // Timeout promise - reduced to 10 seconds since we have a fast path/cache
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Auth initialization timed out')), 30000)
+          setTimeout(() => reject(new Error('Auth initialization timed out')), 10000)
         );
 
         // Actual auth promise
         const authPromise = (async () => {
-          // Use getSession for fast initial check
           const { data: { session } } = await supabase.auth.getSession();
           
           if (session?.user) {
             console.log('[AuthContext] Session found, fetching profile...');
-            const currentUser = await authService.getCurrentUser();
+            const currentUser = await authService.getCurrentUser(session.user.id);
             return currentUser;
           }
           return null;
@@ -72,20 +120,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           if (result === 'pending') {
             setAuthStatus('pending');
             setUser(null);
+            await saveCache(null, 'pending');
           } else if (result === 'rejected') {
             setAuthStatus('rejected');
             setUser(null);
+            await saveCache(null, 'rejected');
           } else if (result) {
             setUser(result);
             setAuthStatus('approved');
+            await saveCache(result, 'approved');
           } else {
             setUser(null);
             setAuthStatus(null);
+            await clearCache();
           }
         }
       } catch (err: any) {
         console.error("[AuthContext] Auth initialization error:", err);
-        if (isMounted) {
+        // Keep cached credentials active if network check fails
+        const cachedUserStr = await AsyncStorage.getItem(CACHE_KEYS.USER);
+        if (cachedUserStr) {
+          console.log('[AuthContext] Network error, keeping active cache.');
+        } else if (isMounted) {
           setError(err.message === 'Auth initialization timed out' 
             ? "Connection is slow. Please check your internet and try again." 
             : "Failed to initialize authentication");
@@ -110,6 +166,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setUser(null);
             setAuthStatus(null);
             setIsLoading(false);
+            await clearCache();
           }
           return;
         }
@@ -117,20 +174,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
           if (session?.user) {
             try {
-              const currentUser = await authService.getCurrentUser();
+              const currentUser = await authService.getCurrentUser(session.user.id);
               if (isMounted) {
                 if (currentUser === 'pending') {
                   setAuthStatus('pending');
                   setUser(null);
+                  await saveCache(null, 'pending');
                 } else if (currentUser === 'rejected') {
                   setAuthStatus('rejected');
                   setUser(null);
+                  await saveCache(null, 'rejected');
                 } else if (currentUser) {
                   setUser(currentUser);
                   setAuthStatus('approved');
+                  await saveCache(currentUser, 'approved');
                 } else {
                   setUser(null);
                   setAuthStatus(null);
+                  await clearCache();
                 }
                 setIsLoading(false);
               }
@@ -152,19 +213,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       setIsLoading(true);
       setError(null);
-      const currentUser = await authService.getCurrentUser();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
+        setUser(null);
+        setAuthStatus(null);
+        await clearCache();
+        return;
+      }
+      const currentUser = await authService.getCurrentUser(session.user.id);
       if (currentUser === 'pending') {
         setAuthStatus('pending');
         setUser(null);
+        await saveCache(null, 'pending');
       } else if (currentUser === 'rejected') {
         setAuthStatus('rejected');
         setUser(null);
+        await saveCache(null, 'rejected');
       } else if (currentUser) {
         setUser(currentUser);
         setAuthStatus('approved');
+        await saveCache(currentUser, 'approved');
       } else {
         setUser(null);
         setAuthStatus(null);
+        await clearCache();
       }
     } catch (err: any) {
       setError("Failed to refresh authentication");
@@ -190,11 +262,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       console.log('[AuthContext.signUp] authService.signUp completed, result:', newUser);
       
-      // After signup, user is created with approved: false and status: pending
-      // So they should be treated as pending
       setUser(null);
       setAuthStatus('pending');
-      console.log('[AuthContext.signUp] State updated, user is pending');
+      await saveCache(null, 'pending');
     } catch (err: any) {
       console.error('[AuthContext.signUp] Error caught:', err);
       const errorMessage = err.message || "Sign up failed";
@@ -217,13 +287,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (authenticatedUser && typeof authenticatedUser !== 'string') {
         setUser(authenticatedUser);
         setAuthStatus('approved');
+        await saveCache(authenticatedUser, 'approved');
       } else if (authenticatedUser === 'rejected') {
         setUser(null);
         setAuthStatus('rejected');
+        await saveCache(null, 'rejected');
       } else {
-        // If signIn returns 'pending' or null, treat as pending for now
         setUser(null);
         setAuthStatus('pending');
+        await saveCache(null, 'pending');
       }
     } catch (err: any) {
       const errorMessage = err.message || "Sign in failed";
@@ -243,6 +315,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await authService.signOut();
       setUser(null);
       setAuthStatus(null);
+      await clearCache();
       console.log('signout completed');
     } catch (err: any) {
       const errorMessage = err.message || "Sign out failed";

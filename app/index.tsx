@@ -43,6 +43,11 @@ export default function Index() {
     }
   }, [user, authStatus, isLoading]);
 
+  if (!isLoading && !error) {
+    // Return a blank background while router transitions to prevent screen flash
+    return <View style={[styles.container, { backgroundColor: colors.background }]} />;
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.content}>
@@ -55,7 +60,7 @@ export default function Index() {
           />
         </View>
         
-        <Text style={[styles.appName, { color: colors.text }]}>Attendance System</Text>
+        <Text style={[styles.appName, { color: colors.text }]}>Attendance Tracker</Text>
         <Text style={[styles.tagline, { color: colors.textSecondary }]}>Secure & Easy Tracking</Text>
 
         <View style={styles.loaderContainer}>
@@ -93,7 +98,7 @@ export default function Index() {
       </View>
       
       <View style={styles.footer}>
-        <Text style={[styles.footerText, { color: colors.textSecondary }]}>Powered by Hashir Khan</Text>
+        <Text style={[styles.footerText, { color: colors.textSecondary }]}>Powered by Attendance Tracker</Text>
       </View>
     </View>
   );

@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   RefreshControl,
   ScrollView,
@@ -38,6 +38,8 @@ export default function TeacherAnalyticsScreen() {
   } = useTeacherAnalytics(user?.id);
 
   const [refreshing, setRefreshing] = React.useState(false);
+  // Tracks which student IDs the teacher has dismissed from the frequent-absent list
+  const [dismissedAbsenteeIds, setDismissedAbsenteeIds] = useState<Set<string>>(new Set());
 
   useFocusEffect(
     useCallback(() => {
@@ -55,12 +57,23 @@ export default function TeacherAnalyticsScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
+    // Clear dismissals on refresh so teacher sees fresh data
+    setDismissedAbsenteeIds(new Set());
     await fetchCourses();
     if (selectedCourseId) {
       await fetchAnalytics(selectedCourseId);
     }
     setRefreshing(false);
   };
+
+  const handleDismissAbsentee = (studentId: string) => {
+    setDismissedAbsenteeIds((prev) => new Set([...prev, studentId]));
+  };
+
+  // Filtered list — excludes dismissed entries
+  const visibleAbsentees = frequentAbsentees.filter(
+    (s) => !dismissedAbsenteeIds.has(s.student.id)
+  );
 
   const selectedCourse = courses.find((c) => c.id === selectedCourseId);
 
@@ -109,34 +122,44 @@ export default function TeacherAnalyticsScreen() {
           </View>
         )}
 
-        {isLoading && !dailyStats ? (
-          <LoadingSpinner />
-        ) : (
           <>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               Today — {selectedCourse?.name ?? 'Course'}
             </Text>
             <AnalyticsSummary stats={dailyStats} />
-            {dailyStats && (
-              <View style={styles.rateRow}>
-                <StatCard
-                  icon="percent"
-                  label="Today's rate"
-                  value={`${dailyStats.attendanceRateToday}%`}
-                />
-              </View>
-            )}
+            <View style={styles.rateRow}>
+              <StatCard
+                icon="percent"
+                label="Today's rate"
+                value={`${dailyStats?.attendanceRateToday ?? 0}%`}
+              />
+            </View>
 
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Student attendance</Text>
             <StudentAnalyticsList students={studentAnalytics} />
 
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Frequently absent</Text>
-            <FrequentAbsenteesList students={frequentAbsentees} />
+            {/* ── Frequently Absent Section ── */}
+            {visibleAbsentees.length > 0 && (
+              <>
+                <View style={styles.frequentHeader}>
+                  <MaterialIcons name="warning" size={18} color={colors.danger} />
+                  <Text style={[styles.sectionTitle, { color: colors.danger, marginBottom: 0 }]}>
+                    Frequently Absent (3+ absences)
+                  </Text>
+                </View>
+                <Text style={[styles.frequentSubtitle, { color: colors.textSecondary }]}>
+                  These students have been absent 3 or more times. Tap 🗑 to delete.
+                </Text>
+                <FrequentAbsenteesList
+                  students={visibleAbsentees}
+                  onDismiss={handleDismissAbsentee}
+                />
+              </>
+            )}
 
             <Text style={[styles.sectionTitle, { color: colors.text }]}>History by date</Text>
             <AttendanceHistoryByDateList history={historyByDate} />
           </>
-        )}
       </ScrollView>
     </ScreenContainer>
   );
@@ -188,5 +211,16 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontWeight: '600',
+  },
+  frequentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 16,
+    marginBottom: 4,
+  },
+  frequentSubtitle: {
+    fontSize: 12,
+    marginBottom: 10,
   },
 });

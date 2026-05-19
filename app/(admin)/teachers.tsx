@@ -23,7 +23,9 @@ export default function TeachersScreen() {
 
   const fetchTeachers = async () => {
     try {
-      setIsLoading(true);
+      if (teachers.length === 0) {
+        setIsLoading(true);
+      }
       const data = await adminService.getTeachers();
       setTeachers(data);
     } catch (err) {

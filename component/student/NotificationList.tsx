@@ -43,10 +43,6 @@ export const NotificationList: React.FC<NotificationListProps> = ({
 }) => {
   const { colors } = useTheme();
 
-  if (isLoading && notifications.length === 0) {
-    return <LoadingSpinner />;
-  }
-
   if (notifications.length === 0) {
     return (
       <EmptyState

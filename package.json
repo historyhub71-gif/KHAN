@@ -1,6 +1,6 @@
 {
-  "name": "hashir-khan-attendance",
-  "author": "HASHIR KHAN",
+  "name": "attendance-tracker",
+  "author": "Attendance Tracker",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {

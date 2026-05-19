@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { StudentAttendanceReport } from '../../types';
 import { FREQUENT_ABSENT_THRESHOLD } from '../../utils/constants';
@@ -16,6 +16,7 @@ interface AttendanceReportPanelProps {
   error: string | null;
   onDownload: () => void;
   onShare: () => void;
+  onDismissWarning?: () => void;
 }
 
 export const AttendanceReportPanel: React.FC<AttendanceReportPanelProps> = ({
@@ -25,6 +26,7 @@ export const AttendanceReportPanel: React.FC<AttendanceReportPanelProps> = ({
   error,
   onDownload,
   onShare,
+  onDismissWarning,
 }) => {
   const { colors } = useTheme();
 
@@ -50,6 +52,15 @@ export const AttendanceReportPanel: React.FC<AttendanceReportPanelProps> = ({
           <Text style={[styles.warningText, { color: colors.text }]}>
             Frequent absences: {report.stats.absent} days (threshold {FREQUENT_ABSENT_THRESHOLD}+)
           </Text>
+          {onDismissWarning && (
+            <TouchableOpacity
+              onPress={onDismissWarning}
+              style={styles.dismissBtn}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <MaterialIcons name="close" size={18} color={colors.warning} />
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -115,6 +126,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     marginBottom: 16,
+  },
+  dismissBtn: {
+    marginLeft: 'auto',
+    padding: 2,
   },
   warningText: {
     flex: 1,

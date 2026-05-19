@@ -11,7 +11,7 @@ import { StudentAttendanceList } from '../../../component/teacher/StudentAttenda
 import { useAuth } from '../../../hooks/useAuth';
 import { teacherService } from '../../../services/teacherService';
 import { Profile } from '../../../types';
-import { Colors } from '../../../utils/colors';
+import { useTheme } from '../../../context/ThemeContext';
 import { DateHelpers } from '../../../utils/dateHelpers';
 
 export default function CourseAttendanceScreen() {
@@ -23,6 +23,7 @@ export default function CourseAttendanceScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [courseName, setCourseName] = useState('');
+  const { colors } = useTheme();
 
   useEffect(() => {
     if (id) {
@@ -89,9 +90,9 @@ export default function CourseAttendanceScreen() {
 
   return (
     <ScreenContainer>
-      <View style={styles.header}>
-        <Text style={styles.courseName}>{courseName}</Text>
-        <Text style={styles.date}>{DateHelpers.formatDate(new Date())}</Text>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <Text style={[styles.courseName, { color: colors.text }]}>{courseName}</Text>
+        <Text style={[styles.date, { color: colors.textSecondary }]}>{DateHelpers.formatDate(new Date())}</Text>
       </View>
 
       <StudentAttendanceList
@@ -115,16 +116,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.lightGray,
   },
   courseName: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.dark,
     marginBottom: 4,
   },
   date: {
     fontSize: 14,
-    color: Colors.gray,
   },
 });

@@ -25,14 +25,6 @@ export const TeacherCourseList: React.FC<TeacherCourseListProps> = ({
 }) => {
   const { colors } = useTheme();
 
-  if (isLoading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
-
   if (courses.length === 0) {
     return (
       <EmptyState
@@ -54,12 +46,19 @@ export const TeacherCourseList: React.FC<TeacherCourseListProps> = ({
           onPress={() => onCoursePress?.(item)}
           activeOpacity={0.7}
         >
+          {/* Absolutely Positioned Top-Right Small Red Badge */}
+          <View style={[styles.badge, { backgroundColor: colors.danger + '10' }]}>
+            <Text style={[styles.badgeText, { color: colors.danger }]}>Attendance</Text>
+          </View>
+
           <View style={[styles.courseIcon, { backgroundColor: colors.primary + '10' }]}>
             <MaterialIcons name="class" size={28} color={colors.primary} />
           </View>
 
           <View style={styles.courseInfo}>
-            <Text style={[styles.courseName, { color: colors.text }]}>{item.name}</Text>
+            <Text style={[styles.courseName, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
+              {item.name}
+            </Text>
             <Text style={[styles.courseCode, { color: colors.textSecondary }]}>{item.code}</Text>
           </View>
 
@@ -95,9 +94,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     // Shadow
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
     elevation: 2,
   },
   courseIcon: {
@@ -110,11 +109,26 @@ const styles = StyleSheet.create({
   },
   courseInfo: {
     flex: 1,
+    paddingRight: 64, // Reserves space so the course name never overlaps the badge
   },
   courseName: {
     fontSize: 16,
     fontWeight: '700',
     marginBottom: 4,
+  },
+  badge: {
+    position: 'absolute',
+    top: 10,
+    right: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  badgeText: {
+    fontSize: 8.5,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
   courseCode: {
     fontSize: 13,

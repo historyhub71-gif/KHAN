@@ -17,15 +17,7 @@ export const StudentOverviewCard: React.FC<StudentOverviewCardProps> = ({
 }) => {
   const { colors } = useTheme();
 
-  if (isLoading && !overview) {
-    return (
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <LoadingSpinner />
-      </View>
-    );
-  }
-
-  if (!overview) return null;
+  const data = overview || { totalPresent: 0, totalAbsent: 0, percentage: 0 };
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -35,19 +27,19 @@ export const StudentOverviewCard: React.FC<StudentOverviewCardProps> = ({
       </View>
       <View style={styles.statsRow}>
         <View style={styles.stat}>
-          <Text style={[styles.statValue, { color: colors.success }]}>{overview.totalPresent}</Text>
+          <Text style={[styles.statValue, { color: colors.success }]}>{data.totalPresent}</Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Present</Text>
         </View>
         <View style={styles.stat}>
-          <Text style={[styles.statValue, { color: colors.danger }]}>{overview.totalAbsent}</Text>
+          <Text style={[styles.statValue, { color: colors.danger }]}>{data.totalAbsent}</Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Absent</Text>
         </View>
         <View style={styles.stat}>
-          <Text style={[styles.statValue, { color: colors.primary }]}>{overview.percentage}%</Text>
+          <Text style={[styles.statValue, { color: colors.primary }]}>{data.percentage}%</Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Rate</Text>
         </View>
       </View>
-      <ProgressBar percentage={overview.percentage} />
+      <ProgressBar percentage={data.percentage} />
     </View>
   );
 };

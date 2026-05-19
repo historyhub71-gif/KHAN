@@ -92,6 +92,8 @@ export default function StudentDashboardScreen() {
     }
   };
 
+  if (!user) return null;
+
   return (
     <ScreenContainer>
       <ScrollView
@@ -140,13 +142,6 @@ export default function StudentDashboardScreen() {
 
         <StudentOverviewCard overview={overview} isLoading={overviewLoading} />
 
-        {notifError && (
-          <View style={[styles.errorBanner, { backgroundColor: colors.danger + '15' }]}>
-            <Text style={[styles.errorText, { color: colors.danger }]}>
-              Alerts unavailable: {notifError}. Run supabase/migrations/003 and 004 in Supabase SQL Editor.
-            </Text>
-          </View>
-        )}
 
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent alerts</Text>

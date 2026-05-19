@@ -52,14 +52,16 @@ export const useNotifications = (
 
   const deleteNotifications = useCallback(async (ids: string[]) => {
     if (!studentId || !ids.length) return;
-    await notificationService.deleteNotifications(ids, studentId);
-    setNotifications((prev) => prev.filter((n) => !ids.includes(n.id)));
-    // Also update unread count just in case some deleted were unread
-    setUnreadCount((c) => {
-      const deletedUnread = notifications.filter(n => ids.includes(n.id) && !n.read).length;
-      return Math.max(0, c - deletedUnread);
+    // Capture unread count of to-be-deleted items BEFORE the async delete
+    setNotifications((prev) => {
+      const deletedUnreadCount = prev.filter((n) => ids.includes(n.id) && !n.read).length;
+      if (deletedUnreadCount > 0) {
+        setUnreadCount((c) => Math.max(0, c - deletedUnreadCount));
+      }
+      return prev.filter((n) => !ids.includes(n.id));
     });
-  }, [studentId, notifications]);
+    await notificationService.deleteNotifications(ids, studentId);
+  }, [studentId]);
 
   const refreshRef = useRef(refresh);
   const onNewNotificationRef = useRef(onNewNotification);

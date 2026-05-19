@@ -10,7 +10,9 @@ export const useStudentOverview = (studentId: string | undefined) => {
   const fetchOverview = useCallback(async () => {
     if (!studentId) return;
     try {
-      setIsLoading(true);
+      if (overview === null) {
+        setIsLoading(true);
+      }
       setError(null);
       const data = await studentService.getGlobalAttendance(studentId);
       setOverview(data);
@@ -19,7 +21,7 @@ export const useStudentOverview = (studentId: string | undefined) => {
     } finally {
       setIsLoading(false);
     }
-  }, [studentId]);
+  }, [studentId, overview]);
 
   return { overview, isLoading, error, fetchOverview };
 };

@@ -36,7 +36,9 @@ export default function CoursesScreen() {
 
   const fetchCourses = async () => {
     try {
-      setIsLoading(true);
+      if (courses.length === 0) {
+        setIsLoading(true);
+      }
       const data = await adminService.getCourses();
       setCourses(data);
     } catch (err) {

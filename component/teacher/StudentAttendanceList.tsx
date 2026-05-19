@@ -9,7 +9,7 @@ import {
     View,
 } from 'react-native';
 import { Profile } from '../../types';
-import { Colors } from '../../utils/colors';
+import { useTheme } from '../../context/ThemeContext';
 import { EmptyState } from '../common/EmptyState';
 
 interface StudentAttendanceListProps {
@@ -30,6 +30,7 @@ export const StudentAttendanceList: React.FC<StudentAttendanceListProps> = ({
   onOpenReport,
 }) => {
   const [attendance, setAttendance] = useState<{ [studentId: string]: 'present' | 'absent' | null }>({});
+  const { colors } = useTheme();
 
   useEffect(() => {
     // Initialize with existing attendance
@@ -59,14 +60,6 @@ export const StudentAttendanceList: React.FC<StudentAttendanceListProps> = ({
 
   const isUpdate = Object.keys(existingAttendance).length > 0;
 
-  if (isLoading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
-  }
-
   if (students.length === 0) {
     return (
       <EmptyState title="No Students" message="No students enrolled in this course" />
@@ -78,60 +71,84 @@ export const StudentAttendanceList: React.FC<StudentAttendanceListProps> = ({
       <FlatList
         data={students}
         keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
         renderItem={({ item }) => (
-          <View style={styles.studentCard}>
-            <View style={styles.studentInfo}>
-              <Text style={styles.studentName}>{item.name}</Text>
-              <Text style={styles.studentEmail}>{item.email}</Text>
+          <View style={[styles.studentCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={styles.studentHeader}>
+              <Text style={[styles.studentName, { color: colors.text }]}>{item.name}</Text>
+              <Text style={[styles.studentEmail, { color: colors.textSecondary }]}>{item.email}</Text>
             </View>
 
-            {onOpenReport ? (
-              <TouchableOpacity
-                style={styles.reportBtn}
-                onPress={() => onOpenReport(item)}
-                accessibilityLabel="Download PDF report"
-              >
-                <MaterialIcons name="picture-as-pdf" size={22} color={Colors.primary} />
-              </TouchableOpacity>
-            ) : null}
+            <View style={styles.buttonRow}>
+              {onOpenReport ? (
+                <TouchableOpacity
+                  style={[styles.pdfButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+                  onPress={() => onOpenReport(item)}
+                  accessibilityLabel="Download PDF report"
+                  activeOpacity={0.7}
+                >
+                  <MaterialIcons name="picture-as-pdf" size={20} color={colors.primary} />
+                </TouchableOpacity>
+              ) : null}
 
-            <View style={styles.radioGroup}>
               <TouchableOpacity
                 style={[
-                  styles.radioButton,
-                  attendance[item.id] === 'present' && styles.radioSelected,
+                  styles.attendanceButton,
+                  { backgroundColor: colors.background, borderColor: colors.border },
+                  attendance[item.id] === 'present' && {
+                    backgroundColor: colors.success + '12',
+                    borderColor: colors.success,
+                  },
                 ]}
                 onPress={() => handleStatusChange(item.id, 'present')}
+                activeOpacity={0.7}
               >
                 <MaterialIcons
-                  name={attendance[item.id] === 'present' ? 'radio-button-checked' : 'radio-button-unchecked'}
-                  size={20}
-                  color={attendance[item.id] === 'present' ? Colors.success : Colors.gray}
+                  name={attendance[item.id] === 'present' ? 'check-circle' : 'radio-button-unchecked'}
+                  size={18}
+                  color={attendance[item.id] === 'present' ? colors.success : colors.textSecondary}
                 />
-                <Text style={[
-                  styles.radioText,
-                  attendance[item.id] === 'present' && styles.radioTextSelected,
-                ]}>
+                <Text
+                  style={[
+                    styles.attendanceButtonText,
+                    { color: colors.textSecondary },
+                    attendance[item.id] === 'present' && {
+                      color: colors.success,
+                      fontWeight: '700',
+                    },
+                  ]}
+                >
                   Present
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[
-                  styles.radioButton,
-                  attendance[item.id] === 'absent' && styles.radioSelected,
+                  styles.attendanceButton,
+                  { backgroundColor: colors.background, borderColor: colors.border },
+                  attendance[item.id] === 'absent' && {
+                    backgroundColor: colors.danger + '12',
+                    borderColor: colors.danger,
+                  },
                 ]}
                 onPress={() => handleStatusChange(item.id, 'absent')}
+                activeOpacity={0.7}
               >
                 <MaterialIcons
-                  name={attendance[item.id] === 'absent' ? 'radio-button-checked' : 'radio-button-unchecked'}
-                  size={20}
-                  color={attendance[item.id] === 'absent' ? Colors.danger : Colors.gray}
+                  name={attendance[item.id] === 'absent' ? 'cancel' : 'radio-button-unchecked'}
+                  size={18}
+                  color={attendance[item.id] === 'absent' ? colors.danger : colors.textSecondary}
                 />
-                <Text style={[
-                  styles.radioText,
-                  attendance[item.id] === 'absent' && styles.radioTextSelected,
-                ]}>
+                <Text
+                  style={[
+                    styles.attendanceButtonText,
+                    { color: colors.textSecondary },
+                    attendance[item.id] === 'absent' && {
+                      color: colors.danger,
+                      fontWeight: '700',
+                    },
+                  ]}
+                >
                   Absent
                 </Text>
               </TouchableOpacity>
@@ -142,15 +159,21 @@ export const StudentAttendanceList: React.FC<StudentAttendanceListProps> = ({
       />
 
       <TouchableOpacity
-        style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+        style={[
+          styles.submitButton,
+          { backgroundColor: colors.primary },
+          isSubmitting && { backgroundColor: colors.gray },
+          { shadowColor: colors.primary }
+        ]}
         onPress={handleSubmit}
         disabled={isSubmitting}
+        activeOpacity={0.8}
       >
         {isSubmitting ? (
-          <ActivityIndicator size="small" color={Colors.white} />
+          <ActivityIndicator size="small" color={colors.white} />
         ) : (
           <>
-            <MaterialIcons name="check-circle" size={20} color={Colors.white} />
+            <MaterialIcons name="check-circle" size={20} color={colors.white} />
             <Text style={styles.submitButtonText}>
               {isUpdate ? 'Update Attendance' : 'Submit Attendance'}
             </Text>
@@ -172,82 +195,76 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: 16,
+    paddingBottom: 24,
   },
   studentCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    // Premium soft shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  studentHeader: {
     marginBottom: 12,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-    gap: 8,
-  },
-  reportBtn: {
-    padding: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.lightGray,
-  },
-  studentInfo: {
-    flex: 1,
   },
   studentName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: Colors.dark,
+    fontWeight: '700',
     marginBottom: 4,
   },
   studentEmail: {
-    fontSize: 14,
-    color: Colors.gray,
+    fontSize: 13,
   },
-  radioGroup: {
+  buttonRow: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 8,
+    alignItems: 'center',
+    width: '100%',
   },
-  radioButton: {
+  pdfButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attendanceButton: {
+    flex: 1,
+    height: 44,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    justifyContent: 'center',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.lightGray,
+    gap: 6,
   },
-  radioSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.lightGray,
-  },
-  radioText: {
+  attendanceButtonText: {
     fontSize: 14,
-    color: Colors.gray,
-    marginLeft: 8,
-  },
-  radioTextSelected: {
-    color: Colors.primary,
     fontWeight: '600',
   },
   submitButton: {
-    backgroundColor: Colors.primary,
     marginHorizontal: 16,
-    marginBottom: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
+    marginBottom: 20,
+    height: 52,
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-  },
-  submitButtonDisabled: {
-    backgroundColor: Colors.gray,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 3,
   },
   submitButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

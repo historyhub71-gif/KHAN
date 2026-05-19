@@ -10,7 +10,9 @@ export const useCourses = (userRole: 'student' | 'teacher') => {
 
   const fetchCourses = useCallback(async (userId: string) => {
     try {
-      setIsLoading(true);
+      if (courses.length === 0) {
+        setIsLoading(true);
+      }
       setError(null);
       
       let data;
@@ -26,7 +28,7 @@ export const useCourses = (userRole: 'student' | 'teacher') => {
     } finally {
       setIsLoading(false);
     }
-  }, [userRole]);
+  }, [userRole, courses.length]);
 
   return {
     courses,

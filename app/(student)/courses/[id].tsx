@@ -14,15 +14,15 @@ import { AttendanceStatsComponent } from '../../../component/student/AttendanceS
 import { useAttendance } from '../../../hooks/useAttendance';
 import { useAuth } from '../../../hooks/useAuth';
 import { teacherService } from '../../../services/teacherService';
-import { Colors } from '../../../utils/colors';
+import { useTheme } from '../../../context/ThemeContext';
 
 export default function CourseAttendanceScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user } = useAuth();
-  const { attendance, stats, isLoading, fetchMonthlyAttendance, fetchStats } =
-    useAttendance();
   const [courseName, setCourseName] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const { colors } = useTheme();
+  const { user } = useAuth();
+  const { fetchStats, fetchMonthlyAttendance, stats, isLoading, attendance } = useAttendance();
 
   useEffect(() => {
     if (id && user?.id) {
@@ -79,8 +79,8 @@ export default function CourseAttendanceScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        <View style={styles.header}>
-          <Text style={styles.courseName}>{courseName}</Text>
+        <View style={[styles.header, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.courseName, { color: colors.text }]}>{courseName}</Text>
         </View>
 
         <AttendanceStatsComponent stats={stats} isLoading={isLoading} />
@@ -105,12 +105,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.lightGray,
   },
   courseName: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.dark,
   },
   calendarContainer: {
     flex: 1,

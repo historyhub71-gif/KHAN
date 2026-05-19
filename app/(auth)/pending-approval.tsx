@@ -139,7 +139,7 @@ export default function PendingApprovalScreen() {
             </Text> 
           </TouchableOpacity>
           <Text style={[styles.helpText, { color: colors.textSecondary }]}>
-            Need help? Contact support at hashirkhan@example.com
+            Need help? Contact support at support@example.com
           </Text>
         </Animated.View>
       </ScrollView>

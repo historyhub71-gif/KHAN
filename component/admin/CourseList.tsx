@@ -29,14 +29,6 @@ export const CourseList: React.FC<CourseListProps> = ({
   onAssignPress,
   onEditPress,
 }) => {
-  if (isLoading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
-  }
-
   if (courses.length === 0) {
     return <EmptyState title="No Courses" message="No courses found" />;
   }

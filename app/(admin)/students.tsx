@@ -23,7 +23,9 @@ export default function StudentsScreen() {
 
   const fetchStudents = async () => {
     try {
-      setIsLoading(true);
+      if (students.length === 0) {
+        setIsLoading(true);
+      }
       const data = await adminService.getStudents();
       setStudents(data);
     } catch (err) {

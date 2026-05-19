@@ -151,30 +151,35 @@ export const authService = {
     if (error) throw error;
   },
 
-  getCurrentUser: async (): Promise<AuthUser | 'pending' | 'rejected' | null> => {
+  getCurrentUser: async (passedUserId?: string): Promise<AuthUser | 'pending' | 'rejected' | null> => {
     try {
       console.log('[authService] getCurrentUser starting...');
-      const {
-        data: { user },
-        error: authError
-      } = await supabase.auth.getUser();
+      let targetUserId = passedUserId;
 
-      if (authError) {
-        console.error('[authService] getUser error:', authError);
-        return null;
+      if (!targetUserId) {
+        const {
+          data: { user },
+          error: authError
+        } = await supabase.auth.getUser();
+
+        if (authError) {
+          console.error('[authService] getUser error:', authError);
+          return null;
+        }
+
+        if (!user) {
+          console.log('[authService] No user found in session');
+          return null;
+        }
+        targetUserId = user.id;
       }
 
-      if (!user) {
-        console.log('[authService] No user found in session');
-        return null;
-      }
-
-      console.log('[authService] User found:', user.id, 'fetching profile...');
+      console.log('[authService] User found:', targetUserId, 'fetching profile...');
 
       const { data: profileData, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('id', targetUserId)
         .single();
 
       if (error) {

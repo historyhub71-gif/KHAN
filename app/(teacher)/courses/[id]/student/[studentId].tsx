@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   RefreshControl,
   ScrollView,
@@ -8,12 +8,12 @@ import {
   Text,
   View,
 } from 'react-native';
-import { ScreenContainer } from '../../../../../component/common/ScreenContainer';
 import { LoadingSpinner } from '../../../../../component/common/LoadingSpinner';
+import { ScreenContainer } from '../../../../../component/common/ScreenContainer';
 import { AttendanceReportPanel } from '../../../../../component/teacher/AttendanceReportPanel';
-import { useAuth } from '../../../../../hooks/useAuth';
-import { useAttendanceReport } from '../../../../../hooks/useAttendanceReport';
 import { useTheme } from '../../../../../context/ThemeContext';
+import { useAttendanceReport } from '../../../../../hooks/useAttendanceReport';
+import { useAuth } from '../../../../../hooks/useAuth';
 
 export default function StudentReportScreen() {
   const { id: courseId, studentId } = useLocalSearchParams<{
@@ -33,6 +33,13 @@ export default function StudentReportScreen() {
     downloadPdf,
     shareToParent,
   } = useAttendanceReport(user?.id, courseId, studentId);
+
+  const [warningDismissed, setWarningDismissed] = useState(false);
+
+  // Reset dismissal whenever a fresh report loads
+  useEffect(() => {
+    if (report) setWarningDismissed(false);
+  }, [report?.generatedAt]);
 
   useEffect(() => {
     if (user?.role !== 'teacher') {
@@ -84,12 +91,13 @@ export default function StudentReportScreen() {
           <LoadingSpinner />
         ) : (
           <AttendanceReportPanel
-            report={report}
+            report={report ? { ...report, frequentAbsentWarning: report.frequentAbsentWarning && !warningDismissed } : null}
             isLoading={false}
             isExporting={isExporting}
             error={error}
             onDownload={downloadPdf}
             onShare={shareToParent}
+            onDismissWarning={report?.frequentAbsentWarning && !warningDismissed ? () => setWarningDismissed(true) : undefined}
           />
         )}
       </ScrollView>

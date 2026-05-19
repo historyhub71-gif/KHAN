@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "HASHIR KHAN",
-    "slug": "httpspsbklzpvrolunntszfdmsupabaseco",
+    "name": "Attendance Tracker",
+    "slug": "attendense-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -54,8 +54,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "c04fd335-4f52-4431-9de3-8c6b01b27d58"
+        "projectId": "489fc41a-66e8-4200-aea7-ce3c73bcb6c7"
       }
-    }
+    },
+    "owner": "nepokids-organization"
   }
 }

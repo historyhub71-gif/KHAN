@@ -37,14 +37,6 @@ export const UserList: React.FC<UserListProps> = ({
 }) => {
   const { colors } = useTheme();
 
-  if (isLoading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
-
   if (users.length === 0) {
     return <EmptyState title="No Users" message="No users found" />;
   }

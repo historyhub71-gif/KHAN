@@ -47,9 +47,11 @@ export default function AdminDashboardScreen() {
     }
   }, [user, authLoading]);
 
-  const fetchStats = async () => {
+  const fetchStats = async (isRefresh = false) => {
     try {
-      setIsLoading(true);
+      if (!isRefresh) {
+        setIsLoading(true);
+      }
 
       const [teachers, students, courses] = await Promise.all([
         adminService.getTeachers(),
@@ -81,7 +83,7 @@ export default function AdminDashboardScreen() {
   const onRefresh = async () => {
     try {
       setRefreshing(true);
-      await fetchStats();
+      await fetchStats(true);
     } catch (err) {
       console.error(err);
     } finally {
@@ -97,6 +99,8 @@ export default function AdminDashboardScreen() {
       console.error(err);
     }
   };
+
+  if (!user) return null;
 
   return (
     <ScreenContainer>
@@ -204,152 +208,143 @@ export default function AdminDashboardScreen() {
           Platform Overview
         </Text>
 
-        {/* Loading */}
-        {isLoading ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator
-              size="large"
-              color={colors.primary}
-            />
+        {/* Platform Overview */}
+        <View style={styles.statsGrid}>
+          {/* Teachers */}
+          <View
+            style={[
+              styles.statCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.statIconContainer,
+                {
+                  backgroundColor:
+                    colors.primary + '15',
+                },
+              ]}
+            >
+              <MaterialIcons
+                name="person-outline"
+                size={24}
+                color={colors.primary}
+              />
+            </View>
+
+            <Text
+              style={[
+                styles.statValue,
+                { color: colors.text },
+              ]}
+            >
+              {stats.teachers}
+            </Text>
+
+            <Text
+              style={[
+                styles.statLabel,
+                { color: colors.textSecondary },
+              ]}
+            >
+              Teachers
+            </Text>
           </View>
-        ) : (
-          <View style={styles.statsGrid}>
-            {/* Teachers */}
+
+          {/* Students */}
+          <View
+            style={[
+              styles.statCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+              },
+            ]}
+          >
             <View
               style={[
-                styles.statCard,
+                styles.statIconContainer,
                 {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
+                  backgroundColor:
+                    colors.warning + '15',
                 },
               ]}
             >
-              <View
-                style={[
-                  styles.statIconContainer,
-                  {
-                    backgroundColor:
-                      colors.primary + '15',
-                  },
-                ]}
-              >
-                <MaterialIcons
-                  name="person-outline"
-                  size={24}
-                  color={colors.primary}
-                />
-              </View>
-
-              <Text
-                style={[
-                  styles.statValue,
-                  { color: colors.text },
-                ]}
-              >
-                {stats.teachers}
-              </Text>
-
-              <Text
-                style={[
-                  styles.statLabel,
-                  { color: colors.textSecondary },
-                ]}
-              >
-                Teachers
-              </Text>
+              <MaterialIcons
+                name="school"
+                size={24}
+                color={colors.warning}
+              />
             </View>
 
-            {/* Students */}
-            <View
+            <Text
               style={[
-                styles.statCard,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                },
+                styles.statValue,
+                { color: colors.text },
               ]}
             >
-              <View
-                style={[
-                  styles.statIconContainer,
-                  {
-                    backgroundColor:
-                      colors.warning + '15',
-                  },
-                ]}
-              >
-                <MaterialIcons
-                  name="school"
-                  size={24}
-                  color={colors.warning}
-                />
-              </View>
+              {stats.students}
+            </Text>
 
-              <Text
-                style={[
-                  styles.statValue,
-                  { color: colors.text },
-                ]}
-              >
-                {stats.students}
-              </Text>
-
-              <Text
-                style={[
-                  styles.statLabel,
-                  { color: colors.textSecondary },
-                ]}
-              >
-                Students
-              </Text>
-            </View>
-
-            {/* Courses */}
-            <View
+            <Text
               style={[
-                styles.statCard,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                },
+                styles.statLabel,
+                { color: colors.textSecondary },
               ]}
             >
-              <View
-                style={[
-                  styles.statIconContainer,
-                  {
-                    backgroundColor:
-                      colors.success + '15',
-                  },
-                ]}
-              >
-                <MaterialIcons
-                  name="class"
-                  size={24}
-                  color={colors.success}
-                />
-              </View>
-
-              <Text
-                style={[
-                  styles.statValue,
-                  { color: colors.text },
-                ]}
-              >
-                {stats.courses}
-              </Text>
-
-              <Text
-                style={[
-                  styles.statLabel,
-                  { color: colors.textSecondary },
-                ]}
-              >
-                Courses
-              </Text>
-            </View>
+              Students
+            </Text>
           </View>
-        )}
+
+          {/* Courses */}
+          <View
+            style={[
+              styles.statCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.statIconContainer,
+                {
+                  backgroundColor:
+                    colors.success + '15',
+                },
+              ]}
+            >
+              <MaterialIcons
+                name="class"
+                size={24}
+                color={colors.success}
+              />
+            </View>
+
+            <Text
+              style={[
+                styles.statValue,
+                { color: colors.text },
+              ]}
+            >
+              {stats.courses}
+            </Text>
+
+            <Text
+              style={[
+                styles.statLabel,
+                { color: colors.textSecondary },
+              ]}
+            >
+              Courses
+            </Text>
+          </View>
+        </View>
 
         {/* Menu */}
         <View style={styles.menuContainer}>

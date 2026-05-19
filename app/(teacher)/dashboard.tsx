@@ -37,17 +37,11 @@ export default function TeacherDashboardScreen() {
     }
   }, [user, authLoading]);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (user?.id) {
-        fetchCourses();
-      }
-    }, [user?.id])
-  );
-
-  const fetchCourses = async () => {
+  const fetchCourses = useCallback(async () => {
     try {
-      setIsLoading(true);
+      if (courses.length === 0) {
+        setIsLoading(true);
+      }
       if (!user?.id) return;
       const data = await teacherService.getCourses(user.id);
       setCourses(data);
@@ -56,7 +50,15 @@ export default function TeacherDashboardScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user?.id, courses.length]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (user?.id) {
+        fetchCourses();
+      }
+    }, [user?.id, fetchCourses])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -79,6 +81,8 @@ export default function TeacherDashboardScreen() {
       console.error(err);
     }
   };
+
+  if (!user) return null;
 
   return (
     <ScreenContainer>
