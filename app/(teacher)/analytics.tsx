@@ -27,6 +27,7 @@ export default function TeacherAnalyticsScreen() {
     courses,
     selectedCourseId,
     dailyStats,
+    courseSummary,
     studentAnalytics,
     frequentAbsentees,
     historyByDate,
@@ -45,8 +46,11 @@ export default function TeacherAnalyticsScreen() {
     useCallback(() => {
       if (user?.id) {
         fetchCourses();
+        if (selectedCourseId) {
+          fetchAnalytics(selectedCourseId);
+        }
       }
-    }, [user?.id, fetchCourses])
+    }, [user?.id, fetchCourses, selectedCourseId, fetchAnalytics])
   );
 
   useEffect(() => {
@@ -122,44 +126,80 @@ export default function TeacherAnalyticsScreen() {
           </View>
         )}
 
-          <>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Today — {selectedCourse?.name ?? 'Course'}
+        <>
+          {/* ── Daily Attendance Analytics ── */}
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Daily Attendance Analytics
+          </Text>
+          <AnalyticsSummary stats={dailyStats} />
+          <View style={styles.rateRow}>
+            <StatCard
+              icon="percent"
+              label="Today's rate"
+              value={`${dailyStats?.attendanceRateToday ?? 0}%`}
+            />
+          </View>
+
+          {/* ── Course Attendance Summary ── */}
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Course Attendance Summary
+          </Text>
+          <View style={styles.summaryRow}>
+            <StatCard
+              icon="groups"
+              label="Total Students"
+              value={courseSummary?.totalStudents ?? 0}
+            />
+            <StatCard
+              icon="check-circle"
+              label="Present Count"
+              value={courseSummary?.totalPresent ?? 0}
+              color="#34C759"
+            />
+            <StatCard
+              icon="cancel"
+              label="Absent Count"
+              value={courseSummary?.totalAbsent ?? 0}
+              color="#FF3B30"
+            />
+          </View>
+          <View style={styles.rateRow}>
+            <StatCard
+              icon="percent"
+              label="Attendance Percentage"
+              value={`${courseSummary?.overallPercentage ?? 0}%`}
+            />
+          </View>
+
+          {/* ── Frequently Absent Section ── */}
+          <View style={styles.frequentHeader}>
+            <MaterialIcons name="warning" size={18} color={colors.danger} />
+            <Text style={[styles.sectionTitle, { color: colors.danger, marginBottom: 0 }]}>
+              Frequently Absent (3+ absences)
             </Text>
-            <AnalyticsSummary stats={dailyStats} />
-            <View style={styles.rateRow}>
-              <StatCard
-                icon="percent"
-                label="Today's rate"
-                value={`${dailyStats?.attendanceRateToday ?? 0}%`}
-              />
+          </View>
+          <Text style={[styles.frequentSubtitle, { color: colors.textSecondary }]}>
+            These students have been absent 3 or more times. Tap 🗑 to delete.
+          </Text>
+          {visibleAbsentees.length > 0 ? (
+            <FrequentAbsenteesList
+              students={visibleAbsentees}
+              onDismiss={handleDismissAbsentee}
+            />
+          ) : (
+            <View style={[styles.emptyAbsenteeBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.emptyAbsenteeText, { color: colors.textSecondary }]}>
+                No students flagged with 3+ absences.
+              </Text>
             </View>
+          )}
 
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Student attendance</Text>
-            <StudentAnalyticsList students={studentAnalytics} />
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Student attendance</Text>
+          <StudentAnalyticsList students={studentAnalytics} />
 
-            {/* ── Frequently Absent Section ── */}
-            {visibleAbsentees.length > 0 && (
-              <>
-                <View style={styles.frequentHeader}>
-                  <MaterialIcons name="warning" size={18} color={colors.danger} />
-                  <Text style={[styles.sectionTitle, { color: colors.danger, marginBottom: 0 }]}>
-                    Frequently Absent (3+ absences)
-                  </Text>
-                </View>
-                <Text style={[styles.frequentSubtitle, { color: colors.textSecondary }]}>
-                  These students have been absent 3 or more times. Tap 🗑 to delete.
-                </Text>
-                <FrequentAbsenteesList
-                  students={visibleAbsentees}
-                  onDismiss={handleDismissAbsentee}
-                />
-              </>
-            )}
-
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>History by date</Text>
-            <AttendanceHistoryByDateList history={historyByDate} />
-          </>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>History by date</Text>
+          <AttendanceHistoryByDateList history={historyByDate} />
+        </>
       </ScrollView>
     </ScreenContainer>
   );
@@ -222,5 +262,28 @@ const styles = StyleSheet.create({
   frequentSubtitle: {
     fontSize: 12,
     marginBottom: 10,
+  },
+  loadingContainer: {
+    paddingVertical: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyAbsenteeBox: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyAbsenteeText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 16,
   },
 });

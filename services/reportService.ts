@@ -11,26 +11,22 @@ import {
 import { supabase } from '../utils/supabase';
 import { analyticsService } from './analyticsService';
 import { teacherService } from './teacherService';
+import { calculateAttendanceStats } from '../utils/attendanceCalculations';
 
 function computeStats(records: Attendance[]) {
-  const present = records.filter((r) => r.status === 'present').length;
-  const absent = records.filter((r) => r.status === 'absent').length;
-  const total = present + absent;
-  const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
-  return { total, present, absent, percentage };
+  return calculateAttendanceStats(records);
 }
 
 function buildMonthlySummaries(records: Attendance[]): MonthlyAttendanceSummary[] {
-  const byMonth = new Map<string, { present: number; absent: number; year: number; monthIndex: number }>();
+  const byMonth = new Map<string, { records: Attendance[]; year: number; monthIndex: number }>();
 
   for (const r of records) {
     const d = new Date(r.date + 'T12:00:00');
     const year = d.getFullYear();
     const monthIndex = d.getMonth();
     const key = `${year}-${monthIndex}`;
-    const cur = byMonth.get(key) ?? { present: 0, absent: 0, year, monthIndex };
-    if (r.status === 'present') cur.present += 1;
-    else cur.absent += 1;
+    const cur = byMonth.get(key) ?? { records: [], year, monthIndex };
+    cur.records.push(r);
     byMonth.set(key, cur);
   }
 
@@ -41,14 +37,14 @@ function buildMonthlySummaries(records: Attendance[]): MonthlyAttendanceSummary[
 
   return Array.from(byMonth.values())
     .map((v) => {
-      const total = v.present + v.absent;
+      const stats = calculateAttendanceStats(v.records);
       return {
         month: `${monthNames[v.monthIndex]} ${v.year}`,
         year: v.year,
         monthIndex: v.monthIndex,
-        present: v.present,
-        absent: v.absent,
-        percentage: total > 0 ? Math.round((v.present / total) * 100) : 0,
+        present: stats.present,
+        absent: stats.absent,
+        percentage: stats.percentage,
       };
     })
     .sort((a, b) => b.year - a.year || b.monthIndex - a.monthIndex);

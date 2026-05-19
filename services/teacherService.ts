@@ -1,4 +1,4 @@
-import { Course, Profile } from "../types";
+import { Attendance, Course, Profile } from "../types";
 import { supabase } from "../utils/supabase";
 import { notificationService } from "./notificationService";
 
@@ -91,15 +91,15 @@ export const teacherService = {
     return data || [];
   },
 
-  getCourseAttendanceHistory: async (courseId: string) => {
+  getCourseAttendanceHistory: async (courseId: string): Promise<Attendance[]> => {
     const { data, error } = await supabase
       .from('attendance')
-      .select('*')
+      .select('*, student:profiles!attendance_student_id_fkey(*)')
       .eq('course_id', courseId)
       .order('date', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as Attendance[];
   },
 
   getStudentAttendanceInCourse: async (courseId: string, studentId: string) => {

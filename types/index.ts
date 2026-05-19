@@ -32,6 +32,7 @@ export interface Attendance {
   status: AttendanceStatus;
   date: string;
   created_at: string;
+  student?: Profile;
 }
 
 export interface CourseTeacher {
@@ -117,4 +118,11 @@ export interface StudentAttendanceReport {
   monthlySummaries: MonthlyAttendanceSummary[];
   frequentAbsentWarning: boolean;
   generatedAt: string;
+}
+
+export interface CourseAttendanceSummary {
+  totalStudents: number;
+  totalPresent: number;
+  totalAbsent: number;
+  overallPercentage: number;
 }

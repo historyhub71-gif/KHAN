@@ -186,10 +186,10 @@ export const SignupForm: React.FC<SignupFormProps> = ({
               activeOpacity={0.7}
               style={[
                 styles.roleCard,
-                { borderColor: colors.border },
+                { borderColor: colors.border, backgroundColor: colors.surface },
                 selectedRole === 'teacher' && { 
                   borderColor: colors.primary, 
-                  backgroundColor: colors.primary + '08' 
+                  backgroundColor: colors.primary + '15' 
                 },
               ]}
             >
@@ -215,10 +215,10 @@ export const SignupForm: React.FC<SignupFormProps> = ({
               activeOpacity={0.7}
               style={[
                 styles.roleCard,
-                { borderColor: colors.border },
+                { borderColor: colors.border, backgroundColor: colors.surface },
                 selectedRole === 'student' && { 
                   borderColor: colors.secondary, 
-                  backgroundColor: colors.secondary + '08' 
+                  backgroundColor: colors.secondary + '15' 
                 },
               ]}
             >
@@ -329,7 +329,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderRadius: 20,
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,

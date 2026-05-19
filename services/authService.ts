@@ -17,6 +17,12 @@ export const authService = {
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            name,
+            role,
+          }
+        }
       });
 
       if (authError) {
@@ -67,7 +73,7 @@ export const authService = {
         }
       }
 
-      // CHECK PROFILE STATUS BEFORE UPSERT TO PREVENT RE-REGISTERING REJECTED USERS
+      // CHECK PROFILE STATUS BEFORE INSERT TO PREVENT RE-REGISTERING REJECTED USERS
       const { data: existingProfile, error: existingProfileError } = await supabase
         .from('profiles')
         .select('status')
@@ -78,22 +84,27 @@ export const authService = {
         throw new Error('This account request was previously rejected.');
       }
 
-      console.log('[authService.signUp] Upserting profile for userId:', userId);
+      console.log('[authService.signUp] Inserting profile for userId:', userId);
 
       const { error: profileError } = await supabase
         .from('profiles')
-        .upsert({
+        .insert({
           id: userId,
           email: userEmail,
           name,
           role,
           approved: false,
           status: 'pending',
-        }, { onConflict: 'id', ignoreDuplicates: true });
+        });
 
       if (profileError) {
-        console.error('[authService.signUp] Profile upsert error:', profileError);
-        throw profileError;
+        // Ignore duplicate key conflicts if the profile was already created (e.g. by database trigger)
+        if (profileError.code === '23505' || profileError.message?.includes('duplicate key') || profileError.message?.includes('already exists')) {
+          console.log('[authService.signUp] Profile already exists, ignoring duplicate key error.');
+        } else {
+          console.error('[authService.signUp] Profile insert error:', profileError);
+          throw profileError;
+        }
       }
 
       console.log('[authService.signUp] Profile handled successfully');
@@ -127,8 +138,30 @@ export const authService = {
 
       if (profileError) {
         if (profileError.code === 'PGRST116' || profileError.message?.includes('permission denied')) {
-          console.log('[authService] Profile not found. Pushing error as requested.');
-          throw new Error('Account not found. Your request may have been rejected or deleted.');
+          console.log('[authService] Profile not found. Attempting to recreate profile from auth metadata...');
+          const name = data.user.user_metadata?.name || 'User';
+          const role = data.user.user_metadata?.role || 'student';
+          
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert({
+              id: data.user.id,
+              email: data.user.email || email,
+              name,
+              role,
+              approved: false,
+              status: 'pending',
+            })
+            .select()
+            .single();
+
+          if (createError) {
+            console.error('[authService] Failed to recreate profile:', createError);
+            throw new Error('Account not found. Your request may have been rejected or deleted.');
+          }
+
+          console.log('[authService] Profile successfully recreated from metadata:', newProfile);
+          return 'pending';
         }
         console.error('[authService] Profile fetch error:', profileError);
         throw profileError;
@@ -185,7 +218,29 @@ export const authService = {
       if (error) {
         console.log('[authService] Profile fetch error code:', error.code);
         if (error.code === 'PGRST116' || error.message?.includes('permission denied')) {
-          console.log('[authService] Profile not found. Returning null to force logout.');
+          console.log('[authService] Profile not found. Attempting to recreate profile from auth metadata...');
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const name = user.user_metadata?.name || 'User';
+            const role = user.user_metadata?.role || 'student';
+            const { data: newProfile, error: createError } = await supabase
+              .from('profiles')
+              .insert({
+                id: user.id,
+                email: user.email || '',
+                name,
+                role,
+                approved: false,
+                status: 'pending',
+              })
+              .select()
+              .single();
+
+            if (!createError) {
+              console.log('[authService] Profile successfully recreated from metadata in getCurrentUser:', newProfile);
+              return 'pending';
+            }
+          }
           return null;
         }
         throw error;

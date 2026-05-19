@@ -4,6 +4,7 @@ import { teacherService } from '../services/teacherService';
 import {
   AttendanceHistoryByDate,
   Course,
+  CourseAttendanceSummary,
   StudentCourseAnalytics,
   TeacherDailyAnalytics,
 } from '../types';
@@ -13,6 +14,7 @@ export const useTeacherAnalytics = (teacherId: string | undefined) => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [dailyStats, setDailyStats] = useState<TeacherDailyAnalytics | null>(null);
+  const [courseSummary, setCourseSummary] = useState<CourseAttendanceSummary | null>(null);
   const [studentAnalytics, setStudentAnalytics] = useState<StudentCourseAnalytics[]>([]);
   const [frequentAbsentees, setFrequentAbsentees] = useState<StudentCourseAnalytics[]>([]);
   const [historyByDate, setHistoryByDate] = useState<AttendanceHistoryByDate[]>([]);
@@ -39,6 +41,13 @@ export const useTeacherAnalytics = (teacherId: string | undefined) => {
       try {
         setIsLoading(true);
         setError(null);
+        
+        // Immediately reset state to avoid showing stale data from previous courses
+        setDailyStats(null);
+        setCourseSummary(null);
+        setStudentAnalytics([]);
+        setFrequentAbsentees([]);
+        setHistoryByDate([]);
 
         const owns = await analyticsService.verifyTeacherOwnsCourse(teacherId, courseId);
         if (!owns) {
@@ -47,17 +56,13 @@ export const useTeacherAnalytics = (teacherId: string | undefined) => {
         }
 
         const today = DateHelpers.formatISO(new Date());
-        const [daily, students, frequent, history] = await Promise.all([
-          analyticsService.getTeacherDailyAnalytics(courseId, today),
-          analyticsService.getStudentAnalyticsForCourse(courseId),
-          analyticsService.getFrequentAbsentees(courseId),
-          analyticsService.getAttendanceHistoryByDate(courseId),
-        ]);
+        const data = await analyticsService.getCourseAnalytics(courseId, today);
 
-        setDailyStats(daily);
-        setStudentAnalytics(students);
-        setFrequentAbsentees(frequent);
-        setHistoryByDate(history);
+        setDailyStats(data.dailyStats);
+        setCourseSummary(data.courseSummary);
+        setStudentAnalytics(data.studentAnalytics);
+        setFrequentAbsentees(data.frequentAbsentees);
+        setHistoryByDate(data.historyByDate);
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Failed to load analytics');
       } finally {
@@ -75,6 +80,7 @@ export const useTeacherAnalytics = (teacherId: string | undefined) => {
     courses,
     selectedCourseId,
     dailyStats,
+    courseSummary,
     studentAnalytics,
     frequentAbsentees,
     historyByDate,

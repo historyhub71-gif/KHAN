@@ -1,6 +1,7 @@
 import {
   Attendance,
   AttendanceHistoryByDate,
+  CourseAttendanceSummary,
   Profile,
   StudentCourseAnalytics,
   StudentGlobalAttendance,
@@ -9,19 +10,113 @@ import {
 import { FREQUENT_ABSENT_THRESHOLD } from '../utils/constants';
 import { supabase } from '../utils/supabase';
 import { teacherService } from './teacherService';
-
-function groupByStudent(records: Attendance[]): Map<string, { present: number; absent: number }> {
-  const map = new Map<string, { present: number; absent: number }>();
-  for (const r of records) {
-    const cur = map.get(r.student_id) ?? { present: 0, absent: 0 };
-    if (r.status === 'present') cur.present += 1;
-    else cur.absent += 1;
-    map.set(r.student_id, cur);
-  }
-  return map;
-}
+import { calculateAttendanceStats } from '../utils/attendanceCalculations';
 
 export const analyticsService = {
+  getCourseAnalytics: async (
+    courseId: string,
+    today: string
+  ): Promise<{
+    dailyStats: TeacherDailyAnalytics;
+    courseSummary: CourseAttendanceSummary;
+    studentAnalytics: StudentCourseAnalytics[];
+    frequentAbsentees: StudentCourseAnalytics[];
+    historyByDate: AttendanceHistoryByDate[];
+  }> => {
+    console.log(`[analyticsService.getCourseAnalytics] Fetching for courseId: ${courseId}`);
+    
+    // Fetch students and history once
+    const enrolledStudents = await teacherService.getCourseStudents(courseId);
+    const history = await teacherService.getCourseAttendanceHistory(courseId);
+
+    console.log(`[analyticsService.getCourseAnalytics] Enrolled students count: ${enrolledStudents.length}`);
+    console.log(`[analyticsService.getCourseAnalytics] Attendance history records count: ${history.length}`);
+
+    // Build unique map of student profiles using both enrolled students and students from history records
+    const studentMap = new Map<string, Profile>();
+    for (const student of enrolledStudents) {
+      studentMap.set(student.id, student);
+    }
+
+    for (const record of history) {
+      if (record.student && !studentMap.has(record.student_id)) {
+        studentMap.set(record.student_id, record.student);
+        console.log(`[analyticsService.getCourseAnalytics] Found unenrolled student with history: ${record.student.name} (${record.student_id})`);
+      }
+    }
+
+    const students = Array.from(studentMap.values());
+    console.log(`[analyticsService.getCourseAnalytics] Total students (enrolled + history-derived): ${students.length}`);
+
+    // 1. Calculate daily stats for today
+    const todayRecords = history.filter((r) => r.date === today);
+    const todayStats = calculateAttendanceStats(todayRecords);
+    const dailyStats: TeacherDailyAnalytics = {
+      totalStudents: students.length,
+      presentToday: todayStats.present,
+      absentToday: todayStats.absent,
+      attendanceRateToday: todayStats.percentage,
+    };
+
+    // 2. Calculate overall course attendance summary
+    const overallStats = calculateAttendanceStats(history);
+    const courseSummary: CourseAttendanceSummary = {
+      totalStudents: students.length,
+      totalPresent: overallStats.present,
+      totalAbsent: overallStats.absent,
+      overallPercentage: overallStats.percentage,
+    };
+
+    // 3. Calculate student analytics
+    const studentAnalytics: StudentCourseAnalytics[] = students.map((student: Profile) => {
+      const studentHistory = history.filter((r) => r.student_id === student.id);
+      const stats = calculateAttendanceStats(studentHistory);
+      
+      console.log(`[analyticsService.getCourseAnalytics] Student ${student.name} (${student.id}): Present=${stats.present}, Absent=${stats.absent}, Total=${stats.total}, Percentage=${stats.percentage}%`);
+
+      return {
+        student,
+        present: stats.present,
+        absent: stats.absent,
+        percentage: stats.percentage,
+      };
+    });
+
+    // 4. Calculate frequent absentees
+    const frequentAbsentees = studentAnalytics
+      .filter((s) => s.absent >= FREQUENT_ABSENT_THRESHOLD)
+      .sort((a, b) => b.absent - a.absent);
+
+    // 5. Calculate history by date
+    const byDate = new Map<string, { present: number; absent: number }>();
+    for (const r of history) {
+      const cur = byDate.get(r.date) ?? { present: 0, absent: 0 };
+      if (r.status === 'present') cur.present += 1;
+      else cur.absent += 1;
+      byDate.set(r.date, cur);
+    }
+    const historyByDate: AttendanceHistoryByDate[] = Array.from(byDate.entries())
+      .map(([date, counts]) => ({
+        date,
+        present: counts.present,
+        absent: counts.absent,
+        total: counts.present + counts.absent,
+      }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+
+    console.log(`[analyticsService.getCourseAnalytics] Calculated daily stats:`, dailyStats);
+    console.log(`[analyticsService.getCourseAnalytics] Calculated course summary:`, courseSummary);
+    console.log(`[analyticsService.getCourseAnalytics] Calculated history by date:`, historyByDate);
+
+    return {
+      dailyStats,
+      courseSummary,
+      studentAnalytics,
+      frequentAbsentees,
+      historyByDate,
+    };
+  },
+
   getTeacherDailyAnalytics: async (
     courseId: string,
     date: string
@@ -29,19 +124,14 @@ export const analyticsService = {
     const students = await teacherService.getCourseStudents(courseId);
     const todayRecords = await teacherService.getAttendanceByDate(courseId, date);
 
-    const markedStudentIds = new Set(todayRecords.map((r) => r.student_id));
-    const presentToday = todayRecords.filter((r) => r.status === 'present').length;
-    const absentToday = todayRecords.filter((r) => r.status === 'absent').length;
+    const stats = calculateAttendanceStats(todayRecords);
     const totalStudents = students.length;
-    const markedCount = markedStudentIds.size;
-    const attendanceRateToday =
-      markedCount > 0 ? Math.round((presentToday / markedCount) * 100) : 0;
 
     return {
       totalStudents,
-      presentToday,
-      absentToday,
-      attendanceRateToday,
+      presentToday: stats.present,
+      absentToday: stats.absent,
+      attendanceRateToday: stats.percentage,
     };
   },
 
@@ -50,17 +140,15 @@ export const analyticsService = {
   ): Promise<StudentCourseAnalytics[]> => {
     const students = await teacherService.getCourseStudents(courseId);
     const history = await teacherService.getCourseAttendanceHistory(courseId);
-    const byStudent = groupByStudent(history);
 
     return students.map((student: Profile) => {
-      const counts = byStudent.get(student.id) ?? { present: 0, absent: 0 };
-      const total = counts.present + counts.absent;
-      const percentage = total > 0 ? Math.round((counts.present / total) * 100) : 0;
+      const studentHistory = history.filter((r) => r.student_id === student.id);
+      const stats = calculateAttendanceStats(studentHistory);
       return {
         student,
-        present: counts.present,
-        absent: counts.absent,
-        percentage,
+        present: stats.present,
+        absent: stats.absent,
+        percentage: stats.percentage,
       };
     });
   },
@@ -108,13 +196,12 @@ export const analyticsService = {
 
     if (error) throw error;
 
-    const records = data ?? [];
-    const totalPresent = records.filter((r) => r.status === 'present').length;
-    const totalAbsent = records.filter((r) => r.status === 'absent').length;
-    const total = totalPresent + totalAbsent;
-    const percentage = total > 0 ? Math.round((totalPresent / total) * 100) : 0;
-
-    return { totalPresent, totalAbsent, percentage };
+    const stats = calculateAttendanceStats((data || []) as Attendance[]);
+    return {
+      totalPresent: stats.present,
+      totalAbsent: stats.absent,
+      percentage: stats.percentage,
+    };
   },
 
   verifyTeacherOwnsCourse: async (

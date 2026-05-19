@@ -1,5 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     Alert,
     RefreshControl,
@@ -24,11 +25,13 @@ export default function CourseAttendanceScreen() {
   const { user } = useAuth();
   const { fetchStats, fetchMonthlyAttendance, stats, isLoading, attendance } = useAttendance();
 
-  useEffect(() => {
-    if (id && user?.id) {
-      fetchData();
-    }
-  }, [id, user?.id]);
+  useFocusEffect(
+    useCallback(() => {
+      if (id && user?.id) {
+        fetchData();
+      }
+    }, [id, user?.id])
+  );
 
   const fetchData = async () => {
     try {

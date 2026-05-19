@@ -27,7 +27,7 @@ export const adminService = {
   },
 
   deleteTeacher: async (id: string) => {
-    const { error } = await supabase.from('profiles').delete().eq('id', id);
+    const { error } = await supabase.rpc('delete_user_by_id', { p_user_id: id });
     if (error) throw error;
   },
 
@@ -80,7 +80,7 @@ export const adminService = {
   },
 
   deleteStudent: async (id: string) => {
-    const { error } = await supabase.from('profiles').delete().eq('id', id);
+    const { error } = await supabase.rpc('delete_user_by_id', { p_user_id: id });
     if (error) throw error;
   },
 

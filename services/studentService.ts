@@ -1,6 +1,7 @@
 import { Attendance, AttendanceStats, Course, StudentGlobalAttendance } from "../types";
 import { analyticsService } from "./analyticsService";
 import { supabase } from "../utils/supabase";
+import { calculateAttendanceStats } from "../utils/attendanceCalculations";
 
 export const studentService = {
   getCourses: async (studentId: string): Promise<Course[]> => {
@@ -53,42 +54,14 @@ export const studentService = {
     studentId: string,
     courseId: string
   ): Promise<number> => {
-    const { data, error } = await supabase
-      .from('attendance')
-      .select('status')
-      .eq('student_id', studentId)
-      .eq('course_id', courseId);
-
-    if (error) throw error;
-
-    if (!data || data.length === 0) return 0;
-
-    const presentCount = data.filter(
-      (a: any) => a.status === 'present'
-    ).length;
-    return Math.round((presentCount / data.length) * 100);
+    const records = await studentService.getAttendance(studentId, courseId);
+    const stats = calculateAttendanceStats(records);
+    return stats.percentage;
   },
 
   getAttendanceStats: async (studentId: string, courseId: string): Promise<AttendanceStats> => {
-    const { data, error } = await supabase
-      .from('attendance')
-      .select('status, date')
-      .eq('student_id', studentId)
-      .eq('course_id', courseId);
-
-    if (error) throw error;
-
-    const total = data?.length || 0;
-    const present = data?.filter((a: any) => a.status === 'present').length || 0;
-    const absent = total - present;
-    const percentage = total > 0 ? Math.round((present / total) * 100) : 0;
-
-    return {
-      total,
-      present,
-      absent,
-      percentage,
-    };
+    const records = await studentService.getAttendance(studentId, courseId);
+    return calculateAttendanceStats(records);
   },
 
   getMonthlyAttendance: async (studentId: string, courseId: string, year: number, month: number) => {

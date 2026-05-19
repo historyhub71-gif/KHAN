@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS public.attendance (
 CREATE TABLE IF NOT EXISTS public.notifications (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  teacher_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  teacher_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
   course_id uuid NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
   attendance_id uuid REFERENCES public.attendance(id) ON DELETE CASCADE,
   title text NOT NULL DEFAULT 'Attendance Alert',
@@ -106,6 +106,67 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
     WHERE id = auth.uid() AND role = 'student' AND approved = true
   );
 $$;
+
+CREATE OR REPLACE FUNCTION public.delete_user_by_id(p_user_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  v_role text;
+BEGIN
+  -- Check if the executor is indeed an approved admin
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'admin' AND approved = true
+  ) THEN
+    RAISE EXCEPTION 'Access Denied: Only approved admins can delete users.';
+  END IF;
+
+  -- Get the role of the user to be deleted
+  SELECT role INTO v_role FROM public.profiles WHERE id = p_user_id;
+
+  -- If it's a teacher, clean up their courses first to trigger database cascade deletes
+  IF v_role = 'teacher' THEN
+    DELETE FROM public.courses WHERE id IN (
+      SELECT course_id FROM public.course_teachers WHERE teacher_id = p_user_id
+    );
+  END IF;
+
+  -- Delete from auth.users which cascade deletes public.profiles and everything else
+  DELETE FROM auth.users WHERE id = p_user_id;
+END;
+$$;
+
+-- -----------------------------------------------------------------------------
+-- REGISTRATION PROFILE TRIGGER
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, name, role, approved, status)
+  VALUES (
+    new.id,
+    new.email,
+    COALESCE(new.raw_user_meta_data->>'name', 'User'),
+    COALESCE(new.raw_user_meta_data->>'role', 'student'),
+    false,
+    'pending'
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN new;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- -----------------------------------------------------------------------------
 -- ABSENCE NOTIFICATION TRIGGER
@@ -199,7 +260,7 @@ DROP POLICY IF EXISTS "Only admin can delete profiles" ON public.profiles;
 
 CREATE POLICY "Users can read own profile or admin/teacher" ON public.profiles
   FOR SELECT TO authenticated USING (
-    (id = auth.uid() AND approved = true) OR public.is_admin() OR public.is_teacher()
+    id = auth.uid() OR public.is_admin() OR public.is_teacher()
   );
 CREATE POLICY "Students can view teacher profiles" ON public.profiles
   FOR SELECT TO authenticated
@@ -207,7 +268,7 @@ CREATE POLICY "Students can view teacher profiles" ON public.profiles
     role = 'teacher' AND approved = true
   );
 CREATE POLICY "Users can insert their own profile" ON public.profiles
-  FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
+  FOR INSERT WITH CHECK (auth.uid() = id);
 CREATE POLICY "Only admin can update profiles" ON public.profiles
   FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
 CREATE POLICY "Only admin can delete profiles" ON public.profiles

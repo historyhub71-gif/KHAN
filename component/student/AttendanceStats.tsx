@@ -12,35 +12,33 @@ export const AttendanceStatsComponent: React.FC<AttendanceStatsProps> = ({
   stats,
   isLoading,
 }) => {
-  if (!stats) {
-    return null;
-  }
+  const data = stats || { total: 0, present: 0, absent: 0, percentage: 0 };
 
   return (
     <View style={styles.container}>
       <View style={styles.stat}>
         <Text style={styles.statLabel}>Total Classes</Text>
-        <Text style={styles.statValue}>{stats.total}</Text>
+        <Text style={styles.statValue}>{data.total}</Text>
       </View>
-
+ 
       <View style={[styles.stat, styles.presentStat]}>
         <Text style={styles.statLabel}>Present</Text>
         <Text style={[styles.statValue, { color: Colors.success }]}>
-          {stats.present}
+          {data.present}
         </Text>
       </View>
-
+ 
       <View style={[styles.stat, styles.absentStat]}>
         <Text style={styles.statLabel}>Absent</Text>
         <Text style={[styles.statValue, { color: Colors.danger }]}>
-          {stats.absent}
+          {data.absent}
         </Text>
       </View>
-
+ 
       <View style={[styles.stat, styles.percentageStat]}>
         <Text style={styles.statLabel}>Attendance %</Text>
         <Text style={[styles.statValue, styles.percentageValue]}>
-          {stats.percentage}%
+          {data.percentage}%
         </Text>
       </View>
     </View>
