@@ -1,5 +1,5 @@
 export type UserRole = 'admin' | 'teacher' | 'student';
-export type AttendanceStatus = 'present' | 'absent';
+export type AttendanceStatus = 'present' | 'absent' | null;
 
 export interface Profile {
   id: string;
@@ -70,6 +70,15 @@ export interface Notification {
   read: boolean;
   created_at: string;
   courses?: Pick<Course, 'id' | 'name' | 'code'>;
+  profiles?: {
+    id: string;
+    name: string;
+  };
+  attendance?: {
+    id: string;
+    status: string;
+    date: string;
+  };
 }
 
 export interface TeacherDailyAnalytics {

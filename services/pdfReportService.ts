@@ -4,6 +4,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { StudentAttendanceReport } from '../types';
 import { buildAttendanceReportHtml } from '../utils/pdfReportHtml';
+import { openExternalUrl } from '../utils/openExternalUrl';
 
 async function getLogoDataUri(): Promise<string | undefined> {
   try {
@@ -99,6 +100,14 @@ export const pdfReportService = {
         dialogTitle: 'Download PDF Report',
         UTI: 'com.adobe.pdf',
       });
+      return uri;
+    }
+
+    if (uri.startsWith('file://') || uri.startsWith('content://')) {
+      const opened = await openExternalUrl(uri, { dialogTitle: 'Download PDF Report' });
+      if (opened === 'failed' || opened === 'unsupported') {
+        throw new Error('Could not open the PDF on this device. Try Share instead.');
+      }
     }
 
     return uri;

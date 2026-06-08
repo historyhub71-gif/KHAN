@@ -1,7 +1,7 @@
 import { Attendance, AttendanceStats, Course, StudentGlobalAttendance } from "../types";
-import { analyticsService } from "./analyticsService";
-import { supabase } from "../utils/supabase";
 import { calculateAttendanceStats } from "../utils/attendanceCalculations";
+import { supabase } from "../utils/supabase";
+import { analyticsService } from "./analyticsService";
 
 export const studentService = {
   getCourses: async (studentId: string): Promise<Course[]> => {
@@ -23,7 +23,7 @@ export const studentService = {
     return data?.map((item: any) => {
       const course = item.courses;
       if (!course) return null;
-      
+
       const teacherName = course.course_teachers?.[0]?.profiles?.name || 'Not Assigned';
       return {
         ...course,
@@ -85,5 +85,13 @@ export const studentService = {
     studentId: string
   ): Promise<StudentGlobalAttendance> => {
     return analyticsService.getStudentGlobalAttendance(studentId);
+  },
+
+  deleteAttendance: async (ids: string[]): Promise<void> => {
+    const { error } = await supabase
+      .from('attendance')
+      .delete()
+      .in('id', ids);
+    if (error) throw error;
   },
 };

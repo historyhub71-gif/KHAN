@@ -1,17 +1,17 @@
 import { Href, useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-    Alert,
-    StyleSheet,
-    Text,
-    View,
+  Alert,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { ScreenContainer } from '../../../component/common/ScreenContainer';
 import { StudentAttendanceList } from '../../../component/teacher/StudentAttendanceList';
+import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../hooks/useAuth';
 import { teacherService } from '../../../services/teacherService';
 import { Profile } from '../../../types';
-import { useTheme } from '../../../context/ThemeContext';
 import { DateHelpers } from '../../../utils/dateHelpers';
 
 export default function CourseAttendanceScreen() {
@@ -19,23 +19,17 @@ export default function CourseAttendanceScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [students, setStudents] = useState<Profile[]>([]);
-  const [existingAttendance, setExistingAttendance] = useState<{ [studentId: string]: 'present' | 'absent' }>({});
+  const [existingAttendance, setExistingAttendance] = useState<{ [studentId: string]: 'present' | 'absent' | null }>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [courseName, setCourseName] = useState('');
   const { colors } = useTheme();
 
-  useEffect(() => {
-    if (id) {
-      fetchData();
-    }
-  }, [id]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
       const today = DateHelpers.formatISO(new Date());
-      
+
       const [courseData, studentsData, attendanceData] = await Promise.all([
         teacherService.getCourse(id!),
         teacherService.getCourseStudents(id!),
@@ -44,9 +38,9 @@ export default function CourseAttendanceScreen() {
 
       setCourseName(courseData.name);
       setStudents(studentsData);
-      
+
       // Create attendance map
-      const attendanceMap: { [studentId: string]: 'present' | 'absent' } = {};
+      const attendanceMap: { [studentId: string]: 'present' | 'absent' | null } = {};
       attendanceData.forEach((record: any) => {
         attendanceMap[record.student_id] = record.status;
       });
@@ -57,31 +51,38 @@ export default function CourseAttendanceScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [id]);
 
-  const handleSubmitAttendance = async (attendanceMap: { [studentId: string]: 'present' | 'absent' }) => {
+  useEffect(() => {
+    if (id) {
+      fetchData();
+    }
+  }, [id, fetchData]);
+
+  const handleSubmitAttendance = async (attendanceMap: { [studentId: string]: 'present' | 'absent' | null }) => {
     if (!user?.id || !id) return;
 
     try {
       setIsSubmitting(true);
       const today = DateHelpers.formatISO(new Date());
-      
+
       await Promise.all(
         Object.entries(attendanceMap).map(([studentId, status]) =>
           teacherService.markAttendance(id, studentId, status, today, user.id)
         )
       );
-      
+
       const absentCount = Object.values(attendanceMap).filter((s) => s === 'absent').length;
       const message =
         absentCount > 0
           ? `Attendance saved. ${absentCount} absent student(s) will be notified.`
           : 'Attendance submitted successfully';
       Alert.alert('Success', message);
-      
+
       // Refresh data to show updated attendance
       await fetchData();
     } catch (err: any) {
+      console.error(err);
       Alert.alert('Error', 'Failed to submit attendance');
     } finally {
       setIsSubmitting(false);
@@ -113,16 +114,16 @@ export default function CourseAttendanceScreen() {
 
 const styles = StyleSheet.create({
   header: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 1,
+    borderBottomWidth: 0,
   },
   courseName: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
-    marginBottom: 4,
+    marginBottom: 1,
   },
   date: {
-    fontSize: 14,
+    fontSize: 15,
   },
 });

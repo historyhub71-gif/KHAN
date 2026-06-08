@@ -19,7 +19,7 @@ export default function TeacherLayout() {
         contentStyle: { backgroundColor: colors.background },
       }}
     >
-      <Stack.Screen name="dashboard" options={{ title: 'Teacher Dashboard' }} />
+      <Stack.Screen name="dashboard" options={{ headerShown: false }} />
       <Stack.Screen name="analytics" options={{ title: 'Analytics' }} />
       <Stack.Screen
         name="courses/[id]/student/[studentId]"

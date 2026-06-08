@@ -15,13 +15,7 @@ export default function StudentsScreen() {
   const [students, setStudents] = useState<Profile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchStudents();
-    }, [])
-  );
-
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     try {
       if (students.length === 0) {
         setIsLoading(true);
@@ -34,7 +28,13 @@ export default function StudentsScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [students.length]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchStudents();
+    }, [fetchStudents])
+  );
 
   const handleDelete = (studentId: string) => {
     Alert.alert('Delete Student', 'Are you sure you want to delete this student?', [
@@ -48,6 +48,7 @@ export default function StudentsScreen() {
             fetchStudents();
             Alert.alert('Success', 'Student deleted successfully');
           } catch (err) {
+            console.error(err);
             Alert.alert('Error', 'Failed to delete student');
           }
         },
@@ -61,6 +62,7 @@ export default function StudentsScreen() {
       fetchStudents();
       Alert.alert('Success', 'Student approved successfully');
     } catch (err) {
+      console.error(err);
       Alert.alert('Error', 'Failed to approve student');
     }
   };
@@ -77,6 +79,7 @@ export default function StudentsScreen() {
             fetchStudents();
             Alert.alert('Success', 'Student rejected successfully');
           } catch (err) {
+            console.error(err);
             Alert.alert('Error', 'Failed to reject student');
           }
         },

@@ -29,6 +29,7 @@ export const StudentCourseList: React.FC<StudentCourseListProps> = ({
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ color: colors.textSecondary, marginTop: 12, fontSize: 14, fontWeight: '600' }}>Loading courses...</Text>
       </View>
     );
   }

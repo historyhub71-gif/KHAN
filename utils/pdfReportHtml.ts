@@ -10,11 +10,11 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function statusBadge(status: string): string {
+function statusBadge(status: string | null): string {
   const isPresent = status === 'present';
-  const bg = isPresent ? '#d1fae5' : '#fee2e2';
-  const color = isPresent ? '#065f46' : '#991b1b';
-  const label = isPresent ? 'Present' : 'Absent';
+  const bg = isPresent ? '#d1fae5' : status === 'absent' ? '#fee2e2' : '#f3f4f6';
+  const color = isPresent ? '#065f46' : status === 'absent' ? '#991b1b' : '#374151';
+  const label = isPresent ? 'Present' : status === 'absent' ? 'Absent' : 'Unmarked';
   return (
     '<span style="background:' +
     bg +

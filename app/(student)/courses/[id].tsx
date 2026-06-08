@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
     Alert,
     RefreshControl,
@@ -16,6 +16,7 @@ import { useAttendance } from '../../../hooks/useAttendance';
 import { useAuth } from '../../../hooks/useAuth';
 import { teacherService } from '../../../services/teacherService';
 import { useTheme } from '../../../context/ThemeContext';
+import { supabase } from '../../../utils/supabase';
 
 export default function CourseAttendanceScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -25,15 +26,7 @@ export default function CourseAttendanceScreen() {
   const { user } = useAuth();
   const { fetchStats, fetchMonthlyAttendance, stats, isLoading, attendance } = useAttendance();
 
-  useFocusEffect(
-    useCallback(() => {
-      if (id && user?.id) {
-        fetchData();
-      }
-    }, [id, user?.id])
-  );
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       if (!id || !user?.id) return;
 
@@ -56,7 +49,43 @@ export default function CourseAttendanceScreen() {
       console.error(err);
       Alert.alert('Error', 'Failed to load attendance data');
     }
-  };
+  }, [id, user?.id, fetchStats, fetchMonthlyAttendance]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (id && user?.id) {
+        fetchData();
+      }
+    }, [id, user?.id, fetchData])
+  );
+
+  // Realtime subscription for student attendance changes in this specific course
+  useEffect(() => {
+    if (!id || !user?.id) return;
+
+    console.log(`[CourseAttendanceScreen] Setting up realtime subscription for student ${user.id} and course ${id}`);
+    const channel = supabase
+      .channel(`student_course_attendance:${id}:${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'attendance',
+          filter: `student_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('[CourseAttendanceScreen] Realtime attendance log change detected, updating calendar and stats:', payload.eventType);
+          fetchData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log(`[CourseAttendanceScreen] Cleaning up realtime subscription for student ${user.id} and course ${id}`);
+      supabase.removeChannel(channel);
+    };
+  }, [id, user?.id, fetchData]);
 
   const onRefresh = async () => {
     setRefreshing(true);

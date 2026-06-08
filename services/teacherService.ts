@@ -40,10 +40,22 @@ export const teacherService = {
   markAttendance: async (
     courseId: string,
     studentId: string,
-    status: 'present' | 'absent',
+    status: 'present' | 'absent' | null,
     date: string,
     teacherId: string
   ) => {
+    if (status === null) {
+      const { error } = await supabase
+        .from('attendance')
+        .delete()
+        .eq('course_id', courseId)
+        .eq('student_id', studentId)
+        .eq('date', date);
+
+      if (error) throw error;
+      return null;
+    }
+
     const { data, error } = await supabase
       .from('attendance')
       .upsert(
@@ -127,5 +139,24 @@ export const teacherService = {
 
     if (error) throw error;
     return !!data;
+  },
+
+  deleteAttendanceByDate: async (courseId: string, date: string): Promise<void> => {
+    const { error } = await supabase
+      .from('attendance')
+      .delete()
+      .eq('course_id', courseId)
+      .eq('date', date);
+
+    if (error) throw error;
+  },
+
+  deleteAllAttendance: async (courseId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('attendance')
+      .delete()
+      .eq('course_id', courseId);
+
+    if (error) throw error;
   },
 };

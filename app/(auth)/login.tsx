@@ -17,7 +17,6 @@ export default function LoginScreen() {
     }
   };
 
-  // Watch for user state changes and navigate after successful signin
   React.useEffect(() => {
     if (user && !isLoading && !isUnapproved) {
       if (user.role === 'admin') {
@@ -28,7 +27,7 @@ export default function LoginScreen() {
         router.replace('/(student)/dashboard');
       }
     }
-  }, [user, isUnapproved, isLoading]);
+  }, [user, isUnapproved, isLoading, router]);
 
   // Navigate to pending approval if user is unapproved
   React.useEffect(() => {
@@ -41,12 +40,17 @@ export default function LoginScreen() {
     router.push('/(auth)/signup');
   };
 
+  const handleForgotPasswordPress = () => {
+    router.push('/(auth)/forgot-password' as any);
+  };
+
   return (
     <ScreenContainer>
       <View style={styles.content}>
         <LoginForm
           onSubmit={handleSignIn}
           onSignUpPress={handleSignUpPress}
+          onForgotPasswordPress={handleForgotPasswordPress}
           isLoading={isLoading}
           error={error || undefined}
         />

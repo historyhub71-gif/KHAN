@@ -15,13 +15,7 @@ export default function TeachersScreen() {
   const [teachers, setTeachers] = useState<Profile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchTeachers();
-    }, [])
-  );
-
-  const fetchTeachers = async () => {
+  const fetchTeachers = useCallback(async () => {
     try {
       if (teachers.length === 0) {
         setIsLoading(true);
@@ -34,7 +28,13 @@ export default function TeachersScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [teachers.length]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchTeachers();
+    }, [fetchTeachers])
+  );
 
   const handleDelete = (teacherId: string) => {
     Alert.alert('Delete Teacher', 'Are you sure you want to delete this teacher?', [
@@ -48,6 +48,7 @@ export default function TeachersScreen() {
             fetchTeachers();
             Alert.alert('Success', 'Teacher deleted successfully');
           } catch (err) {
+            console.error(err);
             Alert.alert('Error', 'Failed to delete teacher');
           }
         },
@@ -61,6 +62,7 @@ export default function TeachersScreen() {
       fetchTeachers();
       Alert.alert('Success', 'Teacher approved successfully');
     } catch (err) {
+      console.error(err);
       Alert.alert('Error', 'Failed to approve teacher');
     }
   };
@@ -77,6 +79,7 @@ export default function TeachersScreen() {
             fetchTeachers();
             Alert.alert('Success', 'Teacher rejected successfully');
           } catch (err) {
+            console.error(err);
             Alert.alert('Error', 'Failed to reject teacher');
           }
         },

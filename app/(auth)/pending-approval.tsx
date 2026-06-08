@@ -27,7 +27,7 @@ export default function PendingApprovalScreen() {
       duration: 800,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [fadeAnim]);
 
   const handleLogout = async () => {
     try {
@@ -42,7 +42,7 @@ export default function PendingApprovalScreen() {
     if (!isUnapproved && !isLoading) {
       router.replace('/(auth)/login');
     }
-  }, [isUnapproved, isLoading]);
+  }, [isUnapproved, isLoading, router]);
 
   return (
     <ScreenContainer>

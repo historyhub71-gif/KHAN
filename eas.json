@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 10.0.0"
+    "version": ">= 10.0.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -14,10 +15,24 @@
       },
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://hevtjydsogadszcwdhhn.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_KEY": "sb_publishable_uENAcIvAs1xj0bRsuuqkIw_DLWitRxf"
+        "EXPO_PUBLIC_SUPABASE_KEY": "sb_publishable_uENAcIvAs1xj0bRsuuqkIw_DLWitRxf",
+        "EXPO_PUBLIC_DEEP_LINK_SCHEME": "myapp",
+        "EXPO_PUBLIC_PASSWORD_RESET_REDIRECT": "myapp://reset-password",
+        "EXPO_PUBLIC_ANDROID_PACKAGE": "com.hashirkhan.attendance"
       }
     },
-    "production": {}
+    "production": {
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://hevtjydsogadszcwdhhn.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_KEY": "sb_publishable_uENAcIvAs1xj0bRsuuqkIw_DLWitRxf",
+        "EXPO_PUBLIC_DEEP_LINK_SCHEME": "myapp",
+        "EXPO_PUBLIC_PASSWORD_RESET_REDIRECT": "myapp://reset-password",
+        "EXPO_PUBLIC_ANDROID_PACKAGE": "com.hashirkhan.attendance"
+      }
+    }
   },
   "submit": {
     "production": {}

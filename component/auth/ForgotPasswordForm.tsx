@@ -1,32 +1,30 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState, useEffect } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Animated } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { Validation, ValidationMessages } from '../../utils/validation';
 import { Button } from '../common/Button';
 import { TextInput } from '../common/TextInput';
 
-interface LoginFormProps {
-  onSubmit: (email: string, password: string) => Promise<void>;
-  onSignUpPress?: () => void;
-  onForgotPasswordPress?: () => void;
+interface ForgotPasswordFormProps {
+  onSubmit: (email: string) => Promise<void>;
+  onBackToLoginPress: () => void;
   isLoading?: boolean;
   error?: string;
+  successMessage?: string;
 }
 
-export const LoginForm: React.FC<LoginFormProps> = ({
+export const ForgotPasswordForm: React.FC<ForgotPasswordFormProps> = ({
   onSubmit,
-  onSignUpPress,
-  onForgotPasswordPress,
+  onBackToLoginPress,
   isLoading = false,
   error,
+  successMessage,
 }) => {
   const { colors } = useTheme();
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  
+
   // Animation state
   const [fadeAnim] = useState(new Animated.Value(0));
 
@@ -51,20 +49,17 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       setEmailError('');
     }
 
-    if (!password.trim()) {
-      setPasswordError(ValidationMessages.required);
-      isValid = false;
-    } else {
-      setPasswordError('');
-    }
-
     return isValid;
   };
 
   const handleSubmit = async () => {
+    // Trim email before validation to avoid whitespace issues
+    const trimmedEmail = email.trim();
+    setEmail(trimmedEmail);
+
     if (validateForm()) {
       try {
-        await onSubmit(email, password);
+        await onSubmit(trimmedEmail);
       } catch (err) {
         console.error(err);
       }
@@ -78,19 +73,31 @@ export const LoginForm: React.FC<LoginFormProps> = ({
     >
       <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
         <View style={[styles.iconBox, { backgroundColor: colors.primary + '15' }]}>
-          <Ionicons name="lock-open" size={32} color={colors.primary} />
+          <Ionicons name="key-outline" size={32} color={colors.primary} />
         </View>
-        <Text style={[styles.title, { color: colors.text }]}>Welcome Back</Text>
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Sign in to access your dashboard</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Reset Password</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          Enter your email to receive a password reset link
+        </Text>
       </Animated.View>
 
       {error && (
         <Animated.View style={[
-          styles.errorAlert, 
+          styles.alert,
           { backgroundColor: colors.danger + '10', borderColor: colors.danger, opacity: fadeAnim }
         ]}>
           <Ionicons name="alert-circle" size={20} color={colors.danger} />
-          <Text style={[styles.errorAlertText, { color: colors.danger }]}>{error}</Text>
+          <Text style={[styles.alertText, { color: colors.danger }]}>{error}</Text>
+        </Animated.View>
+      )}
+
+      {successMessage && (
+        <Animated.View style={[
+          styles.alert,
+          { backgroundColor: colors.success + '10', borderColor: colors.success, opacity: fadeAnim }
+        ]}>
+          <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+          <Text style={[styles.alertText, { color: colors.success }]}>{successMessage}</Text>
         </Animated.View>
       )}
 
@@ -108,28 +115,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           leftIcon={<Ionicons name="mail-outline" size={20} color={colors.textSecondary} />}
         />
 
-        <TextInput
-          label="Password"
-          placeholder="••••••••"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          error={passwordError}
-          editable={!isLoading}
-          containerStyle={styles.field}
-          leftIcon={<Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} />}
-        />
-
-        <TouchableOpacity 
-          style={styles.forgotPassword}
-          onPress={onForgotPasswordPress}
-          disabled={isLoading}
-        >
-          <Text style={[styles.forgotPasswordText, { color: colors.primary }]}>Forgot Password?</Text>
-        </TouchableOpacity>
-
         <Button
-          title="Sign In"
+          title="Send Reset Link"
           onPress={handleSubmit}
           loading={isLoading}
           fullWidth
@@ -139,9 +126,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       </Animated.View>
 
       <Animated.View style={[styles.footer, { opacity: fadeAnim }]}>
-        <Text style={[styles.footerText, { color: colors.textSecondary }]}>Don't have an account? </Text>
-        <TouchableOpacity onPress={onSignUpPress} disabled={isLoading}>
-          <Text style={[styles.footerLink, { color: colors.primary }]}>Create one now</Text>
+        <TouchableOpacity onPress={onBackToLoginPress} disabled={isLoading}>
+          <Text style={[styles.footerLink, { color: colors.primary }]}>Back to Sign In</Text>
         </TouchableOpacity>
       </Animated.View>
     </ScrollView>
@@ -177,8 +163,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     textAlign: 'center',
+    paddingHorizontal: 12,
   },
-  errorAlert: {
+  alert: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
@@ -187,7 +174,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 12,
   },
-  errorAlertText: {
+  alertText: {
     fontSize: 14,
     fontWeight: '600',
     flex: 1,
@@ -199,15 +186,6 @@ const styles = StyleSheet.create({
   field: {
     marginBottom: 16,
   },
-  forgotPassword: {
-    alignSelf: 'flex-end',
-    marginBottom: 24,
-    marginTop: -8,
-  },
-  forgotPasswordText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
   submitButton: {
     borderRadius: 20,
     height: 60,
@@ -216,6 +194,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 4,
+    marginTop: 8,
   },
   footer: {
     flexDirection: 'row',
@@ -223,10 +202,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 'auto',
     paddingBottom: 10,
-  },
-  footerText: {
-    fontSize: 14,
-    fontWeight: '500',
   },
   footerLink: {
     fontSize: 14,

@@ -1,22 +1,22 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { Profile } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
+import { Profile } from '../../types';
 import { EmptyState } from '../common/EmptyState';
 
 interface StudentAttendanceListProps {
   students: Profile[];
   isLoading: boolean;
-  existingAttendance: { [studentId: string]: 'present' | 'absent' };
-  onSubmitAll: (attendanceMap: { [studentId: string]: 'present' | 'absent' }) => void;
+  existingAttendance: { [studentId: string]: 'present' | 'absent' | null };
+  onSubmitAll: (attendanceMap: { [studentId: string]: 'present' | 'absent' | null }) => void;
   isSubmitting: boolean;
   onOpenReport?: (student: Profile) => void;
 }
@@ -45,20 +45,21 @@ export const StudentAttendanceList: React.FC<StudentAttendanceListProps> = ({
   }, [students, existingAttendance]);
 
   const handleStatusChange = (studentId: string, status: 'present' | 'absent') => {
-    setAttendance(prev => ({
-      ...prev,
-      [studentId]: status,
-    }));
+    setAttendance(prev => {
+      const current = prev[studentId];
+      const nextStatus = current === status ? null : status;
+      return {
+        ...prev,
+        [studentId]: nextStatus,
+      };
+    });
   };
 
   const handleSubmit = () => {
-    const filteredAttendance = Object.fromEntries(
-      Object.entries(attendance).filter(([_, status]) => status !== null)
-    ) as { [studentId: string]: 'present' | 'absent' };
-    onSubmitAll(filteredAttendance);
+    onSubmitAll(attendance);
   };
 
-  const isUpdate = Object.keys(existingAttendance).length > 0;
+  const isUpdate = Object.values(existingAttendance).some(status => status !== null);
 
   if (students.length === 0) {
     return (
@@ -210,12 +211,12 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   studentHeader: {
-    marginBottom: 12,
+    marginBottom: 14,
   },
   studentName: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 4,
+    fontSize: 20,
+    fontWeight: '500',
+    marginBottom: 0,
   },
   studentEmail: {
     fontSize: 13,
@@ -245,12 +246,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   attendanceButtonText: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
   },
   submitButton: {
     marginHorizontal: 16,
-    marginBottom: 20,
+    marginBottom: 15,
     height: 52,
     borderRadius: 16,
     flexDirection: 'row',
@@ -264,7 +265,8 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
+    textTransform: 'uppercase',
   },
 });

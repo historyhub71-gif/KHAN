@@ -3,6 +3,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authService } from "../services/authService";
 import { AuthUser } from "../types";
 import { supabase } from "../utils/supabase";
+import {
+  isPasswordRecoveryActive,
+  peekPendingRecoveryUrl,
+  setPasswordRecoveryActive,
+} from "../utils/recoveryLink";
 
 const CACHE_KEYS = {
   USER: '@attendance_tracker_cached_user',
@@ -13,6 +18,9 @@ interface AuthContextType {
   user: AuthUser | null;
   authStatus: 'approved' | 'pending' | 'rejected' | null;
   isUnapproved: boolean;
+  /** True only while the app is starting (splash / index). Not used for button taps. */
+  isInitializing: boolean;
+  /** True while sign-in, sign-up, reset email, etc. — buttons only. */
   isLoading: boolean;
   error: string | null;
   signUp: (
@@ -24,24 +32,30 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshAuth: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  updatePassword: (password: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType>({
   user: null,
   authStatus: null,
   isUnapproved: false,
-  isLoading: true,
+  isInitializing: true,
+  isLoading: false,
   error: null,
   signUp: async () => {},
   signIn: async () => {},
   signOut: async () => {},
   refreshAuth: async () => {},
+  resetPassword: async () => {},
+  updatePassword: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authStatus, setAuthStatus] = useState<'approved' | 'pending' | 'rejected' | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const saveCache = async (cachedUser: AuthUser | null, status: string | null) => {
@@ -74,35 +88,41 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const initializeAuth = async () => {
       try {
-        console.log('[AuthContext] Initializing auth...');
-        setIsLoading(true);
         setError(null);
 
-        // 1. FAST PATH: Load cached credentials instantly
-        try {
-          const [cachedUserStr, cachedStatus] = await Promise.all([
-            AsyncStorage.getItem(CACHE_KEYS.USER),
-            AsyncStorage.getItem(CACHE_KEYS.STATUS),
-          ]);
-          
-          if (cachedUserStr && cachedStatus && isMounted) {
-            const cachedUser = JSON.parse(cachedUserStr) as AuthUser;
-            console.log('[AuthContext] Loaded cached user profile:', cachedUser.role);
-            setUser(cachedUser);
-            setAuthStatus(cachedStatus as any);
-            setIsLoading(false); // Transitions instantly to dashboard!
+        const recoveryPending =
+          isPasswordRecoveryActive() || Boolean(peekPendingRecoveryUrl());
+
+        if (recoveryPending) {
+          if (isMounted) setIsInitializing(false);
+        } else {
+          try {
+            const [cachedUserStr, cachedStatus] = await Promise.all([
+              AsyncStorage.getItem(CACHE_KEYS.USER),
+              AsyncStorage.getItem(CACHE_KEYS.STATUS),
+            ]);
+
+            if (cachedUserStr && cachedStatus && isMounted) {
+              const cachedUser = JSON.parse(cachedUserStr) as AuthUser;
+              setUser(cachedUser);
+              setAuthStatus(cachedStatus as any);
+            }
+          } catch (cacheErr) {
+            console.error('[AuthContext] Error loading auth cache:', cacheErr);
           }
-        } catch (cacheErr) {
-          console.error('[AuthContext] Error loading auth cache:', cacheErr);
         }
 
-        // Timeout promise - reduced to 10 seconds since we have a fast path/cache
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Auth initialization timed out')), 10000)
+          setTimeout(() => reject(new Error('Auth initialization timed out')), 15000)
         );
 
         // Actual auth promise
         const authPromise = (async () => {
+          if (isPasswordRecoveryActive()) {
+            console.log('[AuthContext] Password recovery in progress — skip profile load');
+            return null;
+          }
+
           const { data: { session } } = await supabase.auth.getSession();
           
           if (session?.user) {
@@ -136,7 +156,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           }
         }
       } catch (err: any) {
-        console.error("[AuthContext] Auth initialization error:", err);
+        if (err?.message === 'Auth initialization timed out') {
+          console.log("[AuthContext] Auth initialization timed out (database cold start or slow connection)");
+        } else {
+          console.warn("[AuthContext] Auth initialization error:", err);
+        }
         // Keep cached credentials active if network check fails
         const cachedUserStr = await AsyncStorage.getItem(CACHE_KEYS.USER);
         if (cachedUserStr) {
@@ -148,10 +172,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setUser(null);
         }
       } finally {
-        if (isMounted) {
-          setIsLoading(false);
-          console.log('[AuthContext] Initialization complete, isLoading: false');
-        }
+        if (isMounted) setIsInitializing(false);
       }
     };
 
@@ -165,9 +186,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           if (isMounted) {
             setUser(null);
             setAuthStatus(null);
-            setIsLoading(false);
+            setIsInitializing(false);
             await clearCache();
           }
+          return;
+        }
+
+        if (event === 'PASSWORD_RECOVERY') {
+          setPasswordRecoveryActive(true);
+          if (isMounted) setIsInitializing(false);
+          return;
+        }
+
+        if (isPasswordRecoveryActive()) {
+          if (isMounted) setIsInitializing(false);
           return;
         }
 
@@ -193,7 +225,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                   setAuthStatus(null);
                   await clearCache();
                 }
-                setIsLoading(false);
+                setIsInitializing(false);
               }
             } catch (err) {
               console.error('[AuthContext] Error in onAuthStateChange:', err);
@@ -256,6 +288,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.log('[AuthContext.signUp] Starting signup');
       setError(null);
       setIsLoading(true);
+      // Mark auth as settled so screens don't flash login during sign-up flow
+      setIsInitializing(false);
       
       console.log('[AuthContext.signUp] Calling authService.signUp');
       const newUser = await authService.signUp(email, password, name, role);
@@ -279,7 +313,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signIn = async (email: string, password: string) => {
     try {
       setError(null);
-      setIsLoading(true); 
+      setIsLoading(true);
+      // Mark auth as settled immediately so dashboard guards don't flash login
+      setIsInitializing(false);
       console.log('[AuthContext] signIn called with email:', email);
       const authenticatedUser = await authService.signIn(email, password);
       console.log('[AuthContext] signIn successful, user:', authenticatedUser);
@@ -315,11 +351,40 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await authService.signOut();
       setUser(null);
       setAuthStatus(null);
+      setIsInitializing(false);
       await clearCache();
       console.log('signout completed');
     } catch (err: any) {
       const errorMessage = err.message || "Sign out failed";
       console.error('[AuthContext] signOut error:', errorMessage);
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    try {
+      setError(null);
+      setIsLoading(true);
+      await authService.resetPassword(email);
+    } catch (err: any) {
+      const errorMessage = err.message || "Failed to send password reset email";
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updatePassword = async (password: string) => {
+    try {
+      setError(null);
+      setIsLoading(true);
+      await authService.updatePassword(password);
+    } catch (err: any) {
+      const errorMessage = err.message || "Failed to update password";
       setError(errorMessage);
       throw err;
     } finally {
@@ -335,12 +400,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         user,
         authStatus,
         isUnapproved,
+        isInitializing,
         isLoading,
         error,
         signUp,
         signIn,
         signOut,
         refreshAuth,
+        resetPassword,
+        updatePassword,
       }}
     >
       {children}

@@ -1,62 +1,34 @@
 {
   "expo": {
     "name": "Attendance Tracker",
-    "slug": "attendense-app",
+    "slug": "attendence-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "hashirkhanattendance",
+    "scheme": "myapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/images/icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#E6F4FE"
-    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hashirkhan.attendance"
     },
     "android": {
       "package": "com.hashirkhan.attendance",
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "POST_NOTIFICATIONS"
       ]
     },
-    "web": {
-      "output": "single",
-      "favicon": "./assets/images/favicon.png"
-    },
-    "plugins": [
-      "expo-router",
-      "expo-sqlite",
-      "expo-web-browser",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/icon.png",
-          "color": "#007AFF"
-        }
-      ],
-      "expo-asset"
-    ],
-    "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
-    },
     "extra": {
+      "deepLinkScheme": "myapp",
+      "passwordResetRedirect": "//reset-password",
       "router": {},
       "eas": {
-        "projectId": "489fc41a-66e8-4200-aea7-ce3c73bcb6c7"
+        "projectId": "c54f5936-0cf6-44bf-afc1-eb3723046031"
       }
     },
-    "owner": "nepokids-organization"
+    "plugins": [
+      "expo-router"
+    ],
+    "owner": "swatkid"
   }
 }

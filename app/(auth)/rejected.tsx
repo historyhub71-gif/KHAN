@@ -27,7 +27,7 @@ export default function RejectedScreen() {
       duration: 800,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [fadeAnim]);
 
   const handleLogout = async () => {
     try {
@@ -42,7 +42,7 @@ export default function RejectedScreen() {
     if (authStatus !== 'rejected' && !isLoading) {
       router.replace('/(auth)/login');
     }
-  }, [authStatus, isLoading]);
+  }, [authStatus, isLoading, router]);
 
   return (
     <ScreenContainer>

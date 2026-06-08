@@ -7,7 +7,12 @@ export const notificationService = {
   getForStudent: async (studentId: string): Promise<Notification[]> => {
     const { data, error } = await supabase
       .from('notifications')
-      .select('*')
+      .select(`
+        *,
+        courses:course_id(id, name, code),
+        profiles:teacher_id(id, name),
+        attendance:attendance_id(id, status, date)
+      `)
       .eq('student_id', studentId)
       .order('created_at', { ascending: false });
 

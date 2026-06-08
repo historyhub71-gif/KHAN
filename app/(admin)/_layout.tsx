@@ -19,7 +19,7 @@ export default function AdminLayout() {
     >
       <Stack.Screen 
         name="dashboard" 
-        options={{ title: 'Admin Dashboard' }} 
+        options={{ headerShown: false }} 
       />
       <Stack.Screen 
         name="teachers" 

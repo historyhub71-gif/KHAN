@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { analyticsService } from '../services/analyticsService';
 import { teacherService } from '../services/teacherService';
 import {
@@ -20,6 +20,8 @@ export const useTeacherAnalytics = (teacherId: string | undefined) => {
   const [historyByDate, setHistoryByDate] = useState<AttendanceHistoryByDate[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const lastRequestId = useRef(0);
 
   const fetchCourses = useCallback(async () => {
     if (!teacherId) return;
@@ -36,20 +38,25 @@ export const useTeacherAnalytics = (teacherId: string | undefined) => {
   }, [teacherId]);
 
   const fetchAnalytics = useCallback(
-    async (courseId: string) => {
+    async (courseId: string, showLoading = true) => {
       if (!teacherId) return;
+      const requestId = ++lastRequestId.current;
+      
       try {
-        setIsLoading(true);
+        if (showLoading) {
+          setIsLoading(true);
+          // Immediately reset state to avoid showing stale data from previous courses
+          setDailyStats(null);
+          setCourseSummary(null);
+          setStudentAnalytics([]);
+          setFrequentAbsentees([]);
+          setHistoryByDate([]);
+        }
         setError(null);
-        
-        // Immediately reset state to avoid showing stale data from previous courses
-        setDailyStats(null);
-        setCourseSummary(null);
-        setStudentAnalytics([]);
-        setFrequentAbsentees([]);
-        setHistoryByDate([]);
 
         const owns = await analyticsService.verifyTeacherOwnsCourse(teacherId, courseId);
+        if (requestId !== lastRequestId.current) return;
+
         if (!owns) {
           setError('You are not assigned to this course');
           return;
@@ -58,15 +65,21 @@ export const useTeacherAnalytics = (teacherId: string | undefined) => {
         const today = DateHelpers.formatISO(new Date());
         const data = await analyticsService.getCourseAnalytics(courseId, today);
 
+        if (requestId !== lastRequestId.current) return;
+
         setDailyStats(data.dailyStats);
         setCourseSummary(data.courseSummary);
         setStudentAnalytics(data.studentAnalytics);
         setFrequentAbsentees(data.frequentAbsentees);
         setHistoryByDate(data.historyByDate);
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Failed to load analytics');
+        if (requestId === lastRequestId.current) {
+          setError(err instanceof Error ? err.message : 'Failed to load analytics');
+        }
       } finally {
-        setIsLoading(false);
+        if (showLoading && requestId === lastRequestId.current) {
+          setIsLoading(false);
+        }
       }
     },
     [teacherId]
@@ -84,6 +97,7 @@ export const useTeacherAnalytics = (teacherId: string | undefined) => {
     studentAnalytics,
     frequentAbsentees,
     historyByDate,
+    setHistoryByDate,
     isLoading,
     error,
     fetchCourses,

@@ -28,13 +28,7 @@ export default function CoursesScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchCourses();
-    }, [])
-  );
-
-  const fetchCourses = async () => {
+  const fetchCourses = useCallback(async () => {
     try {
       if (courses.length === 0) {
         setIsLoading(true);
@@ -47,7 +41,13 @@ export default function CoursesScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [courses.length]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchCourses();
+    }, [fetchCourses])
+  );
 
   const handleCreateCourse = async () => {
     if (!courseName.trim() || !courseCode.trim()) {
@@ -128,6 +128,7 @@ export default function CoursesScreen() {
             fetchCourses();
             Alert.alert('Success', 'Course deleted successfully');
           } catch (err) {
+            console.error(err);
             Alert.alert('Error', 'Failed to delete course');
           }
         },

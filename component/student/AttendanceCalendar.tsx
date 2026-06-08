@@ -25,7 +25,7 @@ export const AttendanceCalendar: React.FC<AttendanceCalendarProps> = ({
       }
       return acc;
     },
-    {} as Record<string, 'present' | 'absent'>
+    {} as Record<string, 'present' | 'absent' | null>
   );
 
   const daysInMonth = DateHelpers.getDaysInMonth(currentDate);

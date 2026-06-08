@@ -39,7 +39,7 @@ export default function StudentReportScreen() {
   // Reset dismissal whenever a fresh report loads
   useEffect(() => {
     if (report) setWarningDismissed(false);
-  }, [report?.generatedAt]);
+  }, [report]);
 
   useEffect(() => {
     if (user?.role !== 'teacher') {
@@ -47,7 +47,7 @@ export default function StudentReportScreen() {
       return;
     }
     loadReport();
-  }, [user?.role, loadReport]);
+  }, [user?.role, loadReport, router]);
 
   const studentName = report?.student.name ?? 'Student';
   const courseLabel = report

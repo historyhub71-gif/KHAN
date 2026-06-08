@@ -60,10 +60,18 @@ export default function StudentNotificationsScreen() {
   };
 
   const handleDeleteSelected = async () => {
-    if (selectedIds.size === 0) return;
-    await deleteNotifications(Array.from(selectedIds));
-    setIsSelectionMode(false);
-    setSelectedIds(new Set());
+    try {
+      if (selectedIds.size === 0) return;
+
+      await deleteNotifications(Array.from(selectedIds));
+      await refresh();
+
+      setIsSelectionMode(false);
+      setSelectedIds(new Set());
+
+    } catch (err) {
+      console.error('Delete failed:', err);
+    }
   };
 
   return (

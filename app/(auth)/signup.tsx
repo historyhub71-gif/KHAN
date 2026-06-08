@@ -1,6 +1,5 @@
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
 import { SignupForm } from '../../component/auth/SignupForm';
 import { ScreenContainer } from '../../component/common/ScreenContainer';
 import { useAuth } from '../../hooks/useAuth';

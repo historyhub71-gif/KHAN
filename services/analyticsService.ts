@@ -92,7 +92,7 @@ export const analyticsService = {
     for (const r of history) {
       const cur = byDate.get(r.date) ?? { present: 0, absent: 0 };
       if (r.status === 'present') cur.present += 1;
-      else cur.absent += 1;
+      else if (r.status === 'absent') cur.absent += 1;
       byDate.set(r.date, cur);
     }
     const historyByDate: AttendanceHistoryByDate[] = Array.from(byDate.entries())
@@ -172,7 +172,7 @@ export const analyticsService = {
     for (const r of history) {
       const cur = byDate.get(r.date) ?? { present: 0, absent: 0 };
       if (r.status === 'present') cur.present += 1;
-      else cur.absent += 1;
+      else if (r.status === 'absent') cur.absent += 1;
       byDate.set(r.date, cur);
     }
 
