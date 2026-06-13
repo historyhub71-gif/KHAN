@@ -12,7 +12,7 @@ export default function SignupScreen() {
     email: string,
     password: string,
     name: string,
-    role: 'teacher' | 'student'
+    role: 'teacher' | 'student' | 'interviewer'
   ) => {
     try {
       await signUp(email, password, name, role);

@@ -183,6 +183,24 @@ function HomeTabScreen({
             </Text>
           </View>
         </View>
+
+        {/* Tuition Fees Shortcut Card */}
+        <TouchableOpacity
+          style={[styles.statusCard, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 12 }]}
+          onPress={() => router.push('/(student)/fees' as Href)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.statusIconContainer, { backgroundColor: colors.primary + '15' }]}>
+            <Ionicons name="card" size={22} color={colors.primary} />
+          </View>
+          <View style={styles.statusTextContainer}>
+            <Text style={[styles.statusTitle, { color: colors.text }]}>Tuition Fees & Payments</Text>
+            <Text style={[styles.statusDesc, { color: colors.textSecondary }]}>
+              View outstanding fees, receipts, and alert histories.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} style={{ marginRight: 4 }} />
+        </TouchableOpacity>
       </ScrollView>
 
       {/* Modern Red Warning Style Modal for Absent Attendance Alerts */}

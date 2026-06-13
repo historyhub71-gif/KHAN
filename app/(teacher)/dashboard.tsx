@@ -6,11 +6,13 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -20,6 +22,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { teacherService } from '../../services/teacherService';
 import { Course } from '../../types';
 import { supabase } from '../../utils/supabase';
+
 
 // Analytics components and hook
 import { StatCard } from '../../component/common/StatCard';
@@ -123,6 +126,25 @@ function HomeTabScreen({
             </Text>
           </View>
         </View>
+
+        {/* Check-in/out Shortcut Card */}
+        <TouchableOpacity
+          style={[styles.statusCard, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 12 }]}
+          onPress={() => router.push('/(teacher)/attendance')}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.statusIconContainer, { backgroundColor: colors.primary + '15' }]}>
+            <Ionicons name="time" size={22} color={colors.primary} />
+          </View>
+          <View style={styles.statusTextContainer}>
+            <Text style={[styles.statusTitle, { color: colors.text }]}>Daily Attendance Check-in</Text>
+            <Text style={[styles.statusDesc, { color: colors.textSecondary }]}>
+              Perform your daily check-in/out and view status.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} style={{ marginRight: 4 }} />
+        </TouchableOpacity>
+
       </ScrollView>
     </ScreenContainer>
   );
@@ -485,7 +507,344 @@ function AnalyticsTabScreen({ user, colors }: AnalyticsTabProps) {
 }
 
 // ---------------------------------------------------------------------
-// 4. Profile Tab Screen
+// 4. My Students Tab Screen
+// ---------------------------------------------------------------------
+function MyStudentsTabScreen({ user, colors }: { user: any; colors: any }) {
+  const [students, setStudents] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
+  const [interviewHistory, setInterviewHistory] = useState<any[]>([]);
+  const [progressReports, setProgressReports] = useState<any[]>([]);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportNotes, setReportNotes] = useState('');
+  const [improvementPct, setImprovementPct] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(false);
+
+  const fetchStudents = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const data = await teacherService.getAssignedStudents(user.id);
+      setStudents(data);
+    } catch (err) {
+      console.error('Failed to load assigned students:', err);
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
+  }, [user?.id]);
+
+  useFocusEffect(useCallback(() => { fetchStudents(); }, [fetchStudents]));
+
+  const openStudentProfile = async (student: any) => {
+    setSelectedStudent(student);
+    setLoadingProfile(true);
+    try {
+      const [history, reports] = await Promise.all([
+        teacherService.getStudentInterviewHistory(student.id),
+        teacherService.getStudentProgressReports(student.id),
+      ]);
+      setInterviewHistory(history);
+      setProgressReports(reports);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
+
+  const handleSubmitReport = async () => {
+    if (!selectedStudent || !user?.id) return;
+    const pct = parseFloat(improvementPct);
+    if (!reportNotes.trim()) {
+      Alert.alert('Validation', 'Please add progress notes.');
+      return;
+    }
+    if (isNaN(pct)) {
+      Alert.alert('Validation', 'Please enter a valid improvement percentage.');
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      await teacherService.submitProgressReport({
+        studentId: selectedStudent.id,
+        teacherId: user.id,
+        progressNotes: reportNotes.trim(),
+        improvementPercentage: pct,
+      });
+      Alert.alert('Success', 'Progress report submitted successfully.');
+      setShowReportModal(false);
+      setReportNotes('');
+      setImprovementPct('');
+      // Refresh reports
+      const reports = await teacherService.getStudentProgressReports(selectedStudent.id);
+      setProgressReports(reports);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to submit report.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const getLevelColor = (level: string | null | undefined) => {
+    switch (level) {
+      case 'Advanced': return colors.success;
+      case 'Intermediate': return colors.warning;
+      case 'Elementary': return '#f59e0b';
+      default: return colors.danger;
+    }
+  };
+
+  // PROFILE VIEW
+  if (selectedStudent) {
+    return (
+      <ScreenContainer>
+        <ScrollView
+          style={[styles.scrollContainer, { backgroundColor: colors.background }]}
+          contentContainerStyle={[styles.contentContainer, { paddingBottom: 32 }]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Back Button */}
+          <TouchableOpacity
+            style={[msStyles.backBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => setSelectedStudent(null)}
+          >
+            <Ionicons name="arrow-back" size={20} color={colors.primary} />
+            <Text style={[msStyles.backBtnText, { color: colors.primary }]}>All Students</Text>
+          </TouchableOpacity>
+
+          {/* Student Header */}
+          <View style={[msStyles.profileHeader, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[msStyles.profileAvatar, { backgroundColor: colors.primary + '20' }]}>
+              <Text style={[msStyles.profileAvatarText, { color: colors.primary }]}>
+                {selectedStudent.name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <Text style={[msStyles.profileName, { color: colors.text }]}>{selectedStudent.name}</Text>
+            <Text style={[msStyles.profileEmail, { color: colors.textSecondary }]}>{selectedStudent.email}</Text>
+            <View style={styles.statsCardGrid}>
+              {selectedStudent.level && (
+                <View style={[msStyles.pill, { backgroundColor: getLevelColor(selectedStudent.level) + '20' }]}>
+                  <Text style={[msStyles.pillText, { color: getLevelColor(selectedStudent.level) }]}>
+                    {selectedStudent.level}
+                  </Text>
+                </View>
+              )}
+              {selectedStudent.class && (
+                <View style={[msStyles.pill, { backgroundColor: colors.secondary + '20' }]}>
+                  <Text style={[msStyles.pillText, { color: colors.secondary }]}>Class {selectedStudent.class}</Text>
+                </View>
+              )}
+              {selectedStudent.section && (
+                <View style={[msStyles.pill, { backgroundColor: colors.primary + '20' }]}>
+                  <Text style={[msStyles.pillText, { color: colors.primary }]}>Sec. {selectedStudent.section}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {loadingProfile ? (
+            <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 32 }} />
+          ) : (
+            <>
+              {/* Interview History */}
+              <Text style={[styles.sectionTitleLabel, { color: colors.textSecondary, marginTop: 20 }]}>
+                Interview History ({interviewHistory.length})
+              </Text>
+              {interviewHistory.length === 0 ? (
+                <View style={[msStyles.emptyBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 13 }}>No interviews on record.</Text>
+                </View>
+              ) : (
+                interviewHistory.map((iv, idx) => (
+                  <View key={iv.id} style={[msStyles.historyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <View style={msStyles.historyCardHeader}>
+                      <View style={[msStyles.historyBadge, {
+                        backgroundColor: iv.interview_type === 'admission' ? colors.primary + '15' : colors.warning + '15'
+                      }]}>
+                        <Text style={[msStyles.historyBadgeText, {
+                          color: iv.interview_type === 'admission' ? colors.primary : colors.warning
+                        }]}>
+                          {iv.interview_type === 'admission' ? 'Admission' : '14-Day Review'}
+                        </Text>
+                      </View>
+                      <Text style={[msStyles.historyDate, { color: colors.textSecondary }]}>
+                        {new Date(iv.created_at).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <View style={msStyles.historyScoreRow}>
+                      <Text style={[msStyles.historyScore, { color: colors.text }]}>Total: {iv.total_score}/50</Text>
+                      {iv.assigned_level && (
+                        <View style={[msStyles.pill, { backgroundColor: getLevelColor(iv.assigned_level) + '20' }]}>
+                          <Text style={[msStyles.pillText, { color: getLevelColor(iv.assigned_level) }]}>{iv.assigned_level}</Text>
+                        </View>
+                      )}
+                    </View>
+                    {iv.notes && (
+                      <Text style={[msStyles.historyNotes, { color: colors.textSecondary }]} numberOfLines={2}>
+                        {iv.notes}
+                      </Text>
+                    )}
+                  </View>
+                ))
+              )}
+
+              {/* Progress Reports */}
+              <View style={msStyles.sectionHeaderRow}>
+                <Text style={[styles.sectionTitleLabel, { color: colors.textSecondary, marginTop: 20, marginBottom: 0 }]}>
+                  Progress Reports ({progressReports.length})
+                </Text>
+                <TouchableOpacity
+                  style={[msStyles.addReportBtn, { backgroundColor: colors.primary }]}
+                  onPress={() => setShowReportModal(true)}
+                >
+                  <Ionicons name="add" size={14} color="#fff" />
+                  <Text style={msStyles.addReportBtnText}>Add Report</Text>
+                </TouchableOpacity>
+              </View>
+
+              {progressReports.length === 0 ? (
+                <View style={[msStyles.emptyBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <Text style={{ color: colors.textSecondary, fontSize: 13 }}>No progress reports submitted yet.</Text>
+                </View>
+              ) : (
+                progressReports.map((rpt) => (
+                  <View key={rpt.id} style={[msStyles.historyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <View style={msStyles.historyCardHeader}>
+                      <Text style={[msStyles.historyDate, { color: colors.textSecondary }]}>
+                        {new Date(rpt.created_at).toLocaleDateString()}
+                      </Text>
+                      <View style={[msStyles.pill, { backgroundColor: colors.success + '20' }]}>
+                        <Text style={[msStyles.pillText, { color: colors.success }]}>
+                          +{rpt.improvement_percentage}%
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={[msStyles.historyNotes, { color: colors.text }]}>{rpt.progress_notes}</Text>
+                  </View>
+                ))
+              )}
+            </>
+          )}
+        </ScrollView>
+
+        {/* Progress Report Modal */}
+        <Modal visible={showReportModal} animationType="slide" transparent>
+          <View style={msStyles.modalOverlay}>
+            <View style={[msStyles.modalContent, { backgroundColor: colors.background }]}>
+              <View style={[msStyles.modalHeader, { borderBottomColor: colors.border }]}>
+                <Text style={[msStyles.modalTitle, { color: colors.text }]}>Submit Progress Report</Text>
+                <TouchableOpacity onPress={() => setShowReportModal(false)}>
+                  <Ionicons name="close" size={24} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView contentContainerStyle={{ padding: 20 }}>
+                <Text style={[msStyles.fieldLabel, { color: colors.textSecondary }]}>Progress Notes</Text>
+                <TextInput
+                  style={[msStyles.textArea, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  placeholder="Describe the student's progress, strengths and areas to improve..."
+                  placeholderTextColor={colors.textSecondary}
+                  value={reportNotes}
+                  onChangeText={setReportNotes}
+                  multiline
+                  numberOfLines={5}
+                />
+                <Text style={[msStyles.fieldLabel, { color: colors.textSecondary, marginTop: 16 }]}>Improvement % (0–100)</Text>
+                <TextInput
+                  style={[msStyles.textInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+                  placeholder="e.g. 15"
+                  placeholderTextColor={colors.textSecondary}
+                  value={improvementPct}
+                  onChangeText={setImprovementPct}
+                  keyboardType="numeric"
+                />
+                <TouchableOpacity
+                  style={[msStyles.submitBtn, { backgroundColor: isSubmitting ? colors.border : colors.primary }]}
+                  onPress={handleSubmitReport}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Text style={msStyles.submitBtnText}>Submit Report</Text>
+                  }
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      </ScreenContainer>
+    );
+  }
+
+  // LIST VIEW
+  return (
+    <ScreenContainer>
+      <ScrollView
+        style={[styles.scrollContainer, { backgroundColor: colors.background }]}
+        contentContainerStyle={[styles.contentContainer, { paddingBottom: 32 }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchStudents(); }} tintColor={colors.primary} />}
+      >
+        <View style={styles.tabHeader}>
+          <Text style={[styles.tabTitle, { color: colors.text }]}>My Students</Text>
+          <Text style={[styles.tabSubtitle, { color: colors.textSecondary }]}>
+            Students assigned to you — tap to view their profile
+          </Text>
+        </View>
+
+        {isLoading ? (
+          <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 40 }} />
+        ) : students.length === 0 ? (
+          <View style={[styles.emptyStateContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Ionicons name="people-outline" size={48} color={colors.textSecondary} />
+            <Text style={[styles.emptyStateTitle, { color: colors.text }]}>No Students Assigned</Text>
+            <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>
+              Contact admin to assign students to your account.
+            </Text>
+          </View>
+        ) : (
+          <View style={{ gap: 12 }}>
+            {students.map((s) => (
+              <TouchableOpacity
+                key={s.id}
+                style={[msStyles.studentCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                onPress={() => openStudentProfile(s)}
+                activeOpacity={0.8}
+              >
+                <View style={[msStyles.studentAvatar, { backgroundColor: colors.primary + '20' }]}>
+                  <Text style={[msStyles.studentAvatarText, { color: colors.primary }]}>
+                    {s.name.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[msStyles.studentName, { color: colors.text }]}>{s.name}</Text>
+                  <Text style={[msStyles.studentEmail, { color: colors.textSecondary }]}>{s.email}</Text>
+                  <View style={msStyles.pillRow}>
+                    {s.level && (
+                      <View style={[msStyles.pill, { backgroundColor: getLevelColor(s.level) + '20' }]}>
+                        <Text style={[msStyles.pillText, { color: getLevelColor(s.level) }]}>{s.level}</Text>
+                      </View>
+                    )}
+                    {s.class && (
+                      <View style={[msStyles.pill, { backgroundColor: colors.secondary + '20' }]}>
+                        <Text style={[msStyles.pillText, { color: colors.secondary }]}>Cl. {s.class}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </ScreenContainer>
+  );
+}
+
+// ---------------------------------------------------------------------
+// 5. Profile Tab Screen
 // ---------------------------------------------------------------------
 interface ProfileTabProps {
   user: any;
@@ -672,6 +1031,8 @@ export default function TeacherDashboardScreen() {
             iconName = focused ? 'checkbox' : 'checkbox-outline';
           } else if (route.name === 'Analytics') {
             iconName = focused ? 'stats-chart' : 'stats-chart-outline';
+          } else if (route.name === 'My Students') {
+            iconName = focused ? 'people' : 'people-outline';
           } else if (route.name === 'Profile') {
             iconName = focused ? 'person' : 'person-outline';
           }
@@ -734,6 +1095,14 @@ export default function TeacherDashboardScreen() {
       <Tab.Screen name="Analytics">
         {() => (
           <AnalyticsTabScreen
+            user={user}
+            colors={colors}
+          />
+        )}
+      </Tab.Screen>
+      <Tab.Screen name="My Students">
+        {() => (
+          <MyStudentsTabScreen
             user={user}
             colors={colors}
           />
@@ -1173,4 +1542,88 @@ const styles = StyleSheet.create({
     fontSize: 9.5,
     fontWeight: '800',
   },
+});
+
+// Separate stylesheet for MyStudents components
+const msStyles = StyleSheet.create({
+  backBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    padding: 10, borderRadius: 12, borderWidth: 1,
+    marginBottom: 16, alignSelf: 'flex-start',
+  },
+  backBtnText: { fontSize: 13, fontWeight: '600' },
+  profileHeader: {
+    borderRadius: 20, borderWidth: 1, padding: 20,
+    alignItems: 'center', gap: 6,
+  },
+  profileAvatar: {
+    width: 64, height: 64, borderRadius: 32,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
+  },
+  profileAvatarText: { fontSize: 28, fontWeight: '800' },
+  profileName: { fontSize: 18, fontWeight: '700' },
+  profileEmail: { fontSize: 13, marginBottom: 8 },
+  pill: {
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+  },
+  pillText: { fontSize: 11, fontWeight: '600' },
+  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  emptyBox: {
+    padding: 20, borderRadius: 14, borderWidth: 1,
+    alignItems: 'center',
+  },
+  historyCard: {
+    borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 10,
+  },
+  historyCardHeader: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 8,
+  },
+  historyBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 8 },
+  historyBadgeText: { fontSize: 11, fontWeight: '700' },
+  historyDate: { fontSize: 11 },
+  historyScoreRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  historyScore: { fontSize: 14, fontWeight: '700' },
+  historyNotes: { fontSize: 13, lineHeight: 18 },
+  sectionHeaderRow: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 10,
+  },
+  addReportBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10,
+  },
+  addReportBtnText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  studentCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    borderRadius: 16, borderWidth: 1, padding: 14,
+  },
+  studentAvatar: {
+    width: 46, height: 46, borderRadius: 23,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  studentAvatarText: { fontSize: 20, fontWeight: '700' },
+  studentName: { fontSize: 15, fontWeight: '700' },
+  studentEmail: { fontSize: 12, marginTop: 1 },
+  // Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' },
+  modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%' },
+  modalHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    padding: 20, borderBottomWidth: 1,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '700' },
+  fieldLabel: { fontSize: 12, fontWeight: '600', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  textArea: {
+    borderWidth: 1, borderRadius: 12, padding: 12, fontSize: 14,
+    minHeight: 100, textAlignVertical: 'top',
+  },
+  textInput: {
+    borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14,
+  },
+  submitBtn: {
+    marginTop: 20, borderRadius: 14, paddingVertical: 16,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });

@@ -9,7 +9,7 @@ export const authService = {
     email: string,
     password: string,
     name: string,
-    role: 'teacher' | 'student'
+    role: 'teacher' | 'student' | 'interviewer'
   ) => {
     try {
       console.log('[authService.signUp] Starting signup for email:', email);

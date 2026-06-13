@@ -25,6 +25,10 @@ export default function LoginScreen() {
         router.replace('/(teacher)/dashboard');
       } else if (user.role === 'student') {
         router.replace('/(student)/dashboard');
+      } else if (user.role === 'interviewer') {
+        router.replace('/(interviewer)/dashboard');
+      } else if (user.role === 'director') {
+        router.replace('/(director)/dashboard');
       }
     }
   }, [user, isUnapproved, isLoading, router]);

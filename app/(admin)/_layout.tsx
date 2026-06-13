@@ -23,7 +23,7 @@ export default function AdminLayout() {
       />
       <Stack.Screen 
         name="teachers" 
-        options={{ title: 'Manage Teachers' }} 
+        options={{ title: 'Manage Staff' }} 
       />
       <Stack.Screen 
         name="students" 
@@ -36,6 +36,30 @@ export default function AdminLayout() {
       <Stack.Screen 
         name="course-assignments" 
         options={{ title: 'Course Assignments' }} 
+      />
+      <Stack.Screen 
+        name="interviews" 
+        options={{ title: 'Interview Analytics' }} 
+      />
+      <Stack.Screen 
+        name="fees" 
+        options={{ title: 'Fee Approvals' }} 
+      />
+      <Stack.Screen 
+        name="admission-fees" 
+        options={{ title: 'Admission Fees' }} 
+      />
+      <Stack.Screen 
+        name="teacher-attendance" 
+        options={{ title: 'Teacher Attendance' }} 
+      />
+      <Stack.Screen 
+        name="salaries" 
+        options={{ title: 'Teacher Salaries' }} 
+      />
+      <Stack.Screen 
+        name="reports" 
+        options={{ title: 'Academic Reports' }} 
       />
     </Stack>
   );

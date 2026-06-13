@@ -2,7 +2,7 @@ import { Stack } from 'expo-router';
 import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 
-export default function StudentLayout() {
+export default function InterviewerLayout() {
   const { colors } = useTheme();
 
   return (
@@ -20,8 +20,7 @@ export default function StudentLayout() {
       }}
     >
       <Stack.Screen name="dashboard" options={{ headerShown: false }} />
-      <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
-      <Stack.Screen name="fees" options={{ title: 'Tuition Fees' }} />
+      <Stack.Screen name="history" options={{ title: 'Assessment History' }} />
     </Stack>
   );
 }

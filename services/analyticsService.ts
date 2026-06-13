@@ -218,4 +218,114 @@ export const analyticsService = {
     if (error) throw error;
     return !!data;
   },
+
+  getAdminInterviewAnalytics: async () => {
+    // 1. Level Counts
+    const { data: levelData, error: levelErr } = await supabase
+      .from('interviews')
+      .select('assigned_level')
+      .eq('interview_type', 'admission')
+      .is('deleted_at', null);
+
+    if (levelErr) throw levelErr;
+
+    const levels = { Beginner: 0, Intermediate: 0, Advanced: 0 };
+    (levelData || []).forEach((i: any) => {
+      const lvl = i.assigned_level as 'Beginner' | 'Intermediate' | 'Advanced';
+      if (lvl && levels[lvl] !== undefined) {
+        levels[lvl]++;
+      }
+    });
+
+    // 2. Growth Tracking Reviews List
+    const { data: growthReviews, error: growthErr } = await supabase
+      .from('interviews')
+      .select('id, created_at, total_score, student:student_id(name), interviewer:interviewer_id(name)')
+      .eq('interview_type', 'progress_review')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (growthErr) throw growthErr;
+
+    const growthTracking = (growthReviews || []).map((r: any) => ({
+      id: r.id,
+      date: r.created_at,
+      score: r.total_score,
+      studentName: r.student?.name || 'Unknown Student',
+      interviewerName: r.interviewer?.name || 'Unknown ASR',
+    }));
+
+    // 3. Teacher Performance Parameters
+    const { data: progressReports, error: reportsErr } = await supabase
+      .from('student_progress_reports')
+      .select('teacher_id, improvement_percentage, teacher:teacher_id(name)');
+
+    if (reportsErr) throw reportsErr;
+
+    const teacherPerformanceMap: Record<string, { name: string; totalImprovement: number; count: number }> = {};
+    (progressReports || []).forEach((pr: any) => {
+      const teacherId = pr.teacher_id;
+      if (!teacherId) return;
+      const teacherName = pr.teacher?.name || 'Unknown Teacher';
+      if (!teacherPerformanceMap[teacherId]) {
+        teacherPerformanceMap[teacherId] = { name: teacherName, totalImprovement: 0, count: 0 };
+      }
+      teacherPerformanceMap[teacherId].totalImprovement += Number(pr.improvement_percentage || 0);
+      teacherPerformanceMap[teacherId].count++;
+    });
+
+    const teacherPerformance = Object.values(teacherPerformanceMap).map((tp) => ({
+      name: tp.name,
+      averageImprovement: tp.count > 0 ? (tp.totalImprovement / tp.count) : 0,
+      reportsCount: tp.count,
+    }));
+
+    // 4. Fortnight Review Metrics
+    const { data: fortnightData, error: fortnightErr } = await supabase
+      .from('fortnight_reviews')
+      .select('completed_at');
+
+    if (fortnightErr) throw fortnightErr;
+
+    const totalFortnightReviews = fortnightData?.length || 0;
+    const completedFortnightReviews = fortnightData?.filter((fr: any) => fr.completed_at !== null).length || 0;
+    const pendingFortnightReviews = totalFortnightReviews - completedFortnightReviews;
+
+    const fortnightMetrics = {
+      total: totalFortnightReviews,
+      completed: completedFortnightReviews,
+      pending: pendingFortnightReviews,
+      completionRate: totalFortnightReviews > 0 ? (completedFortnightReviews / totalFortnightReviews) * 100 : 0,
+    };
+
+    // 5. Interview Trends
+    const { data: trendsData, error: trendsErr } = await supabase
+      .from('interviews')
+      .select('created_at')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true });
+
+    if (trendsErr) throw trendsErr;
+
+    const trendsMap: Record<string, number> = {};
+    (trendsData || []).forEach((i: any) => {
+      if (!i.created_at) return;
+      const month = new Date(i.created_at).toLocaleString('default', { month: 'short', year: '2-digit' });
+      trendsMap[month] = (trendsMap[month] || 0) + 1;
+    });
+
+    const interviewTrends = Object.entries(trendsMap).map(([month, count]) => ({
+      month,
+      count,
+    })).slice(-6);
+
+    return {
+      levels,
+      growthTracking,
+      teacherPerformance,
+      fortnightMetrics,
+      interviewTrends,
+    };
+  },
 };

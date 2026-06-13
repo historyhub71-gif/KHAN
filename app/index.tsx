@@ -48,6 +48,10 @@ export default function Index() {
           router.replace("/(admin)/dashboard");
         } else if (role === "teacher") {
           router.replace("/(teacher)/dashboard");
+        } else if (role === "interviewer") {
+          router.replace("/(interviewer)/dashboard");
+        } else if (role === "director") {
+          router.replace("/(director)/dashboard");
         } else {
           router.replace("/(student)/dashboard");
         }

@@ -1,4 +1,4 @@
-import { Course, Profile } from "../types";
+import { Course, Profile, StudentProfile } from "../types";
 import { supabase } from "../utils/supabase";
 
 export const adminService = {
@@ -106,6 +106,136 @@ export const adminService = {
 
     if (error) throw error;
     return data;
+  },
+
+  // Formal admission approval: assign class, section, teacher to a student
+  admitStudent: async (params: {
+    studentId: string;
+    assignedTeacherId: string;
+    class: string;
+    section: string;
+  }): Promise<StudentProfile> => {
+    const { data, error } = await supabase
+      .from('student_profiles')
+      .upsert({
+        id: params.studentId,
+        assigned_teacher_id: params.assignedTeacherId,
+        class: params.class,
+        section: params.section,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Also send a notification to the student
+    await supabase.from('notifications').insert({
+      user_id: params.studentId,
+      role: 'student',
+      notification_type: 'admission_approved',
+      title: 'Admission Confirmed',
+      message: `Congratulations! Your admission has been officially confirmed. Class: ${params.class}, Section: ${params.section}.`,
+      read: false,
+    });
+
+    // Notify the assigned teacher
+    await supabase.from('notifications').insert({
+      user_id: params.assignedTeacherId,
+      role: 'teacher',
+      notification_type: 'new_student_assigned',
+      title: 'New Student Assigned',
+      message: `A new student has been assigned to you in Class ${params.class}, Section ${params.section}.`,
+      read: false,
+    });
+
+    return data as StudentProfile;
+  },
+
+  // Get student profile (class, section, assigned teacher, level)
+  getStudentProfile: async (studentId: string): Promise<StudentProfile | null> => {
+    const { data, error } = await supabase
+      .from('student_profiles')
+      .select('*, teacher:assigned_teacher_id(name)')
+      .eq('id', studentId)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return null;
+
+    return {
+      ...data,
+      teacher_name: (data as any).teacher?.name,
+    } as StudentProfile;
+  },
+
+  // Fetch all students with their profiles (for admission management)
+  getStudentsWithProfiles: async (): Promise<(Profile & { studentProfile?: StudentProfile })[]> => {
+    const { data: profiles, error: profError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', 'student')
+      .neq('status', 'rejected')
+      .order('created_at', { ascending: false });
+
+    if (profError) throw profError;
+    if (!profiles || profiles.length === 0) return [];
+
+    const { data: studentProfiles } = await supabase
+      .from('student_profiles')
+      .select('*, teacher:assigned_teacher_id(name)')
+      .in('id', profiles.map((p) => p.id));
+
+    const spMap: Record<string, StudentProfile> = {};
+    (studentProfiles || []).forEach((sp: any) => {
+      spMap[sp.id] = { ...sp, teacher_name: sp.teacher?.name };
+    });
+
+    return profiles.map((p) => ({
+      ...p,
+      studentProfile: spMap[p.id],
+    }));
+  },
+
+  // Interviewer Management
+  getInterviewers: async (): Promise<Profile[]> => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', 'interviewer')
+      .neq('status', 'rejected')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  approveInterviewer: async (id: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ approved: true, status: 'approved' })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  rejectInterviewer: async (id: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ approved: false, status: 'rejected' })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  deleteInterviewer: async (id: string) => {
+    const { error } = await supabase.rpc('delete_user_by_id', { p_user_id: id });
+    if (error) throw error;
   },
 
   // Course Management

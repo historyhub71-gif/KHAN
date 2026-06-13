@@ -25,6 +25,7 @@ export default function TeacherLayout() {
         name="courses/[id]/student/[studentId]"
         options={{ title: 'Student Report' }}
       />
+      <Stack.Screen name="attendance" options={{ title: 'Attendance Check-in' }} />
     </Stack>
   );
 }

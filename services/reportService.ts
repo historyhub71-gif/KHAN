@@ -74,11 +74,26 @@ export const reportService = {
   ): Promise<StudentAttendanceReport> => {
     await assertTeacherCanAccessStudent(teacherId, courseId, studentId);
 
-    const [course, students, teacherResult, history] = await Promise.all([
+    const [
+      course,
+      students,
+      teacherResult,
+      history,
+      studentProfileRes,
+      initialInterviewRes,
+      progressReportsRes,
+      fortnightReviewsRes,
+      latestStatusRes
+    ] = await Promise.all([
       teacherService.getCourse(courseId),
       teacherService.getCourseStudents(courseId),
       supabase.from('profiles').select('*').eq('id', teacherId).single(),
       teacherService.getStudentAttendanceInCourse(courseId, studentId),
+      supabase.from('student_profiles').select('*').eq('id', studentId).maybeSingle(),
+      supabase.from('interviews').select('*').eq('student_id', studentId).eq('interview_type', 'admission').is('deleted_at', null).order('created_at', { ascending: false }).limit(1),
+      supabase.from('student_progress_reports').select('*, teacher:teacher_id(name)').eq('student_id', studentId).order('created_at', { ascending: false }),
+      supabase.from('fortnight_reviews').select('*, interview:interview_id(*)').eq('student_id', studentId).not('completed_at', 'is', null).order('scheduled_date', { ascending: false }),
+      supabase.from('profiles').select('status').eq('id', studentId).single(),
     ]);
 
     const student = students.find((s) => s.id === studentId);
@@ -102,6 +117,11 @@ export const reportService = {
       monthlySummaries: buildMonthlySummaries(history),
       frequentAbsentWarning: stats.absent >= FREQUENT_ABSENT_THRESHOLD,
       generatedAt: new Date().toISOString(),
+      studentProfile: studentProfileRes.data || null,
+      initialInterview: initialInterviewRes.data?.[0] || null,
+      progressReports: progressReportsRes.data || [],
+      fortnightReviews: fortnightReviewsRes.data || [],
+      latestStatus: latestStatusRes.data?.status || 'N/A',
     };
   },
 };

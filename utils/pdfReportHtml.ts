@@ -241,3 +241,124 @@ export function buildAttendanceReportHtml(
 
   return stripPlaceholders(parts.join(''));
 }
+
+export function buildReceiptHtml(
+  payment: any,
+  logoDataUri?: string
+): string {
+  const logoBlock = logoDataUri
+    ? '<img src="' + logoDataUri + '" class="logo" alt="Logo" />'
+    : '<div class="logo-fallback">HK</div>';
+
+  const studentIdShort = payment.student_id ? payment.student_id.slice(0, 8).toUpperCase() : '—';
+  const amountVal = Number(payment.amount || 0);
+  const beforeVal = Number(payment.balance_before || 0);
+  const afterVal = Number(payment.balance_after || 0);
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #1c1c1e; margin: 0; padding: 40px; font-size: 13px; background-color: #ffffff; }
+    .receipt-container { border: 2px solid #e9ecef; border-radius: 16px; padding: 30px; max-width: 600px; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #007AFF; padding-bottom: 20px; margin-bottom: 24px; }
+    .header-left { display: flex; align-items: center; gap: 16px; }
+    .logo { width: 60px; height: 60px; border-radius: 12px; }
+    .logo-fallback { width: 60px; height: 60px; border-radius: 12px; background: linear-gradient(135deg,#007AFF,#5856D6); color:#fff; font-weight:800; font-size:22px; text-align:center; line-height:60px; }
+    .school h1 { margin: 0; font-size: 20px; color: #007AFF; }
+    .school p { margin: 4px 0 0; color: #6c757d; font-size: 11px; }
+    .header-right { text-align: right; }
+    .receipt-title { font-size: 24px; font-weight: 800; color: #1c1c1e; margin: 0; text-transform: uppercase; letter-spacing: 1px; }
+    .receipt-num { font-size: 13px; font-weight: 700; color: #007AFF; margin-top: 6px; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 30px; }
+    .meta-card { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 10px; padding: 12px 14px; }
+    .meta-card label { display: block; font-size: 10px; text-transform: uppercase; color: #6c757d; font-weight: 700; margin-bottom: 4px; }
+    .meta-card span { font-size: 14px; font-weight: 700; color: #1c1c1e; }
+    .payment-details { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+    .payment-details th { background: #f1f3f5; color: #495057; text-align: left; padding: 12px 16px; font-size: 11px; text-transform: uppercase; font-weight: 700; border-top: 1px solid #e9ecef; border-bottom: 1px solid #e9ecef; }
+    .payment-details td { padding: 14px 16px; border-bottom: 1px solid #e9ecef; font-size: 13px; }
+    .amount-large { font-size: 20px; font-weight: 800; color: #34C759; }
+    .summary-section { display: flex; justify-content: flex-end; margin-bottom: 30px; }
+    .summary-table { width: 50%; border-collapse: collapse; }
+    .summary-table td { padding: 8px 12px; font-size: 13px; text-align: right; }
+    .summary-table tr.total td { font-weight: 800; font-size: 15px; border-top: 2px solid #e9ecef; padding-top: 12px; }
+    .footer { text-align: center; border-top: 1px dashed #e9ecef; padding-top: 20px; margin-top: 20px; color: #6c757d; font-size: 11px; line-height: 16px; }
+    .stamp { border: 2.5px solid #34C759; color: #34C759; display: inline-block; padding: 6px 14px; font-weight: 800; font-size: 14px; text-transform: uppercase; border-radius: 6px; transform: rotate(-8deg); margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="receipt-container">
+    <div class="header">
+      <div class="header-left">
+        ${logoBlock}
+        <div class="school">
+          <h1>Attendance Tracker Institute</h1>
+          <p>Excellence in Education and Technology</p>
+        </div>
+      </div>
+      <div class="header-right">
+        <h2 class="receipt-title">Receipt</h2>
+        <div class="receipt-num">${payment.receipt_number || 'RCPT-N/A'}</div>
+      </div>
+    </div>
+
+    <div class="meta-grid">
+      <div class="meta-card"><label>Student Name</label><span>${payment.student_name || 'N/A'}</span></div>
+      <div class="meta-card"><label>Student ID</label><span>${studentIdShort}</span></div>
+      <div class="meta-card"><label>Course Enrolled</label><span>${payment.course || 'N/A'}</span></div>
+      <div class="meta-card"><label>Cashier / Director</label><span>${payment.director_name || 'N/A'}</span></div>
+    </div>
+
+    <table class="payment-details">
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th>Payment Method</th>
+          <th>Date Collected</th>
+          <th style="text-align: right;">Amount Paid</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Tuition Fee Payment</strong><br/><span style="color:#6c757d; font-size:11px;">Due Date: ${payment.due_date || '—'}</span></td>
+          <td>${payment.payment_method || 'Cash'}</td>
+          <td>${payment.collection_date || '—'}</td>
+          <td style="text-align: right;" class="amount-large">Rs. ${amountVal.toFixed(2)}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="summary-section">
+      <table class="summary-table">
+        <tr>
+          <td style="color:#6c757d;">Total Paid:</td>
+          <td><strong>Rs. ${amountVal.toFixed(2)}</strong></td>
+        </tr>
+        <tr>
+          <td style="color:#6c757d;">Previous Outstanding:</td>
+          <td>Rs. ${beforeVal.toFixed(2)}</td>
+        </tr>
+        <tr class="total">
+          <td>Remaining Balance:</td>
+          <td style="color: ${afterVal > 0 ? '#FF3B30' : '#34C759'};">Rs. ${afterVal.toFixed(2)}</td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="text-align: right;">
+      <div class="stamp">Paid</div>
+    </div>
+
+    <div class="footer">
+      <strong>Attendance Tracker Institute</strong><br/>
+      123 Academy Blvd, Science City, Country<br/>
+      Phone: +1 234-567-890 | Email: billing@attendanceapp.com<br/>
+      <span style="font-size:9px; color:#adb5bd; display:block; margin-top:8px;">Generated on ${new Date().toLocaleString()} · System Verified Transaction</span>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+}

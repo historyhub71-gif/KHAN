@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -17,6 +18,8 @@ import { ScreenContainer } from '../../component/common/ScreenContainer';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
 import { adminService } from '../../services/adminService';
+import { feeService } from '../../services/feeService';
+import { interviewerService } from '../../services/interviewerService';
 import { supabase } from '../../utils/supabase';
 
 const Tab = createBottomTabNavigator();
@@ -26,7 +29,16 @@ const Tab = createBottomTabNavigator();
 // ---------------------------------------------------------------------
 interface HomeTabProps {
   user: any;
-  stats: { teachers: number; students: number; courses: number };
+  stats: {
+    teachers: number;
+    students: number;
+    courses: number;
+    interviewers: number;
+    todayAttendance: number;
+    pendingInterviews: number;
+    pendingReviews: number;
+    feeCollections: number;
+  };
   isLoading: boolean;
   refreshing: boolean;
   onRefresh: () => Promise<void>;
@@ -108,17 +120,69 @@ function HomeTabScreen({
         </View>
 
         <View style={styles.statsCardGrid}>
-          {/* Courses */}
+          {/* Interviewers */}
+          <View style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <View style={[styles.itemIconContainer, { backgroundColor: colors.success + '15' }]}>
+              <MaterialIcons name="chat-bubble" size={24} color={colors.success} />
+            </View>
+            <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.interviewers || 0}</Text>
+            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Active ASRs</Text>
+          </View>
+
+          {/* Today's Teacher Attendance */}
           <TouchableOpacity
             style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => router.push('/(admin)/courses')}
+            onPress={() => router.push('/(admin)/teacher-attendance')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.itemIconContainer, { backgroundColor: colors.secondary + '15' }]}>
+              <MaterialIcons name="check-circle" size={24} color={colors.secondary} />
+            </View>
+            <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.todayAttendance || 0}</Text>
+            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Teachers Present Today</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.statsCardGrid}>
+          {/* Pending Admission Interviews */}
+          <TouchableOpacity
+            style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => router.push('/(admin)/interviews')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.itemIconContainer, { backgroundColor: colors.primary + '15' }]}>
+              <MaterialIcons name="assignment" size={24} color={colors.primary} />
+            </View>
+            <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.pendingInterviews || 0}</Text>
+            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Pending Interviews</Text>
+          </TouchableOpacity>
+
+          {/* Pending 14-Day Reviews */}
+          <TouchableOpacity
+            style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => router.push('/(admin)/interviews')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.itemIconContainer, { backgroundColor: colors.warning + '15' }]}>
+              <MaterialIcons name="rate-review" size={24} color={colors.warning} />
+            </View>
+            <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.pendingReviews || 0}</Text>
+            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Pending 14-Day Reviews</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.statsCardGrid}>
+          {/* Fee collection total */}
+          <TouchableOpacity
+            style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => router.push('/(admin)/fees')}
             activeOpacity={0.7}
           >
             <View style={[styles.itemIconContainer, { backgroundColor: colors.success + '15' }]}>
-              <MaterialIcons name="class" size={24} color={colors.success} />
+              <MaterialIcons name="attach-money" size={24} color={colors.success} />
             </View>
-            <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.courses}</Text>
-            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Total Courses</Text>
+            <Text style={[styles.gridItemVal, { color: colors.success }]}>Rs. {(stats.feeCollections || 0).toFixed(2)}</Text>
+            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Tuition Fees Approved</Text>
           </TouchableOpacity>
 
           {/* System status */}
@@ -139,9 +203,48 @@ function HomeTabScreen({
           <View style={styles.statusTextContainer}>
             <Text style={[styles.statusTitle, { color: colors.text }]}>Quick Tip</Text>
             <Text style={[styles.statusDesc, { color: colors.textSecondary }]}>
-              {"Go to the \"Courses\" tab below to create courses and manage academic teacher/student assignments."}
+              {"Go to the \"Courses\" tab below to manage academic assignments, fees, salaries, and retrieve academic reports."}
             </Text>
           </View>
+        </View>
+
+        {/* Action Button: Run Monthly Fee Check */}
+        <View style={[styles.statusCard, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 12 }]}>
+          <View style={[styles.statusIconContainer, { backgroundColor: colors.primary + '15' }]}>
+            <MaterialIcons name="event-note" size={22} color={colors.primary} />
+          </View>
+          <View style={styles.statusTextContainer}>
+            <Text style={[styles.statusTitle, { color: colors.text }]}>Tuition Fee Alert System</Text>
+            <Text style={[styles.statusDesc, { color: colors.textSecondary }]}>
+              Scan student list and generate monthly fee invoices and overdue alerts.
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.triggerBtn, { backgroundColor: colors.primary }]}
+            onPress={async () => {
+              try {
+                Alert.alert(
+                  'Monthly Fee Check',
+                  'Are you sure you want to run the tuition fee check for this month?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Run Check',
+                      onPress: async () => {
+                        const res = await feeService.runMonthlyFeeCheck();
+                        Alert.alert('Fee Check Complete', `Successfully generated ${res.generated} fee invoice(s) and sent notifications.`);
+                        onRefresh();
+                      }
+                    }
+                  ]
+                );
+              } catch (err: any) {
+                Alert.alert('Error', err.message || 'Failed to run fee check');
+              }
+            }}
+          >
+            <Text style={styles.triggerBtnText}>Run Check</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </ScreenContainer>
@@ -267,8 +370,8 @@ interface CoursesTabProps {
 function CoursesTabScreen({ router, colors }: CoursesTabProps) {
   const adminActions = [
     {
-      title: 'Manage Teachers',
-      desc: 'Approve profiles & list teachers',
+      title: 'Manage Staff',
+      desc: 'Approve profiles & list teachers / ASRs',
       icon: 'people-outline',
       route: '/(admin)/teachers',
       color: colors.primary,
@@ -293,6 +396,48 @@ function CoursesTabScreen({ router, colors }: CoursesTabProps) {
       icon: 'assignment-ind',
       route: '/(admin)/course-assignments',
       color: colors.secondary,
+    },
+    {
+      title: 'Interview Analytics',
+      desc: 'Track admission and progress reviews',
+      icon: 'analytics',
+      route: '/(admin)/interviews',
+      color: colors.success,
+    },
+    {
+      title: 'Fee Approvals',
+      desc: 'Verify fee receipts and remind students',
+      icon: 'monetization-on',
+      route: '/(admin)/fees',
+      color: colors.primary,
+    },
+    {
+      title: 'Admission Fees',
+      desc: 'Manage admission deals & discounts',
+      icon: 'receipt',
+      route: '/(admin)/admission-fees',
+      color: colors.danger,
+    },
+    {
+      title: 'Teacher Attendance',
+      desc: 'Monitor check-in & check-out times',
+      icon: 'access-time',
+      route: '/(admin)/teacher-attendance',
+      color: colors.warning,
+    },
+    {
+      title: 'Teacher Salaries',
+      desc: 'Calculate payroll and lates deductions',
+      icon: 'payment',
+      route: '/(admin)/salaries',
+      color: colors.secondary,
+    },
+    {
+      title: 'Academic Reports',
+      desc: 'Generate PDF/HTML status reports',
+      icon: 'print',
+      route: '/(admin)/reports',
+      color: colors.success,
     },
   ];
 
@@ -453,6 +598,11 @@ export default function AdminDashboardScreen() {
     teachers: 0,
     students: 0,
     courses: 0,
+    interviewers: 0,
+    todayAttendance: 0,
+    pendingInterviews: 0,
+    pendingReviews: 0,
+    feeCollections: 0,
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -464,20 +614,43 @@ export default function AdminDashboardScreen() {
         setIsLoading(true);
       }
 
-      const [teachers, students, courses] = await Promise.all([
+      const todayStr = new Date().toISOString().slice(0, 10);
+
+      const [
+        teachers,
+        students,
+        courses,
+        interviewersRes,
+        attendanceTodayRes,
+        pendingInts,
+        pendingRevs,
+        feesData
+      ] = await Promise.all([
         adminService.getTeachers(),
         adminService.getStudents(),
         adminService.getCourses(),
+        supabase.from('profiles').select('id').eq('role', 'interviewer').eq('approved', true),
+        supabase.from('teacher_attendance').select('id').eq('date', todayStr).eq('status', 'present'),
+        interviewerService.getNewStudents().catch(() => []),
+        interviewerService.getPendingProgressReviews().catch(() => []),
+        supabase.from('fee_payments').select('amount').eq('status', 'approved').is('deleted_at', null),
       ]);
 
-      // Only approved users count
       const approvedTeachers = teachers.filter((t) => t.approved === true);
       const approvedStudents = students.filter((s) => s.approved === true);
+      const approvedInterviewersCount = interviewersRes.data?.length || 0;
+      const presentTeachersCount = attendanceTodayRes.data?.length || 0;
+      const totalFeesCollected = feesData.data?.reduce((acc, f) => acc + Number(f.amount), 0) || 0;
 
       setStats({
         teachers: approvedTeachers.length,
         students: approvedStudents.length,
         courses: courses.length,
+        interviewers: approvedInterviewersCount,
+        todayAttendance: presentTeachersCount,
+        pendingInterviews: pendingInts.length,
+        pendingReviews: pendingRevs.length,
+        feeCollections: totalFeesCollected,
       });
     } catch (err) {
       console.error(err);
@@ -970,6 +1143,18 @@ const styles = StyleSheet.create({
   },
   logoutBtnText: {
     fontSize: 14.5,
+    fontWeight: '700',
+  },
+  triggerBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  triggerBtnText: {
+    color: '#fff',
+    fontSize: 12,
     fontWeight: '700',
   },
 });

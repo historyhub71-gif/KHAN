@@ -159,4 +159,113 @@ export const teacherService = {
 
     if (error) throw error;
   },
+
+  // ─── Student Progress Profile ──────────────────────────────────────────────
+
+  // Get all students assigned to this teacher via student_profiles
+  getAssignedStudents: async (teacherId: string): Promise<any[]> => {
+    const { data, error } = await supabase
+      .from('student_profiles')
+      .select(`
+        *,
+        student:id(id, name, email, created_at),
+        teacher:assigned_teacher_id(name)
+      `)
+      .eq('assigned_teacher_id', teacherId);
+
+    if (error) throw error;
+
+    return (data || []).map((sp: any) => ({
+      id: sp.id,
+      name: sp.student?.name || 'Unknown',
+      email: sp.student?.email || '',
+      created_at: sp.student?.created_at,
+      level: sp.level,
+      class: sp.class,
+      section: sp.section,
+      teacher_name: sp.teacher?.name,
+      assigned_teacher_id: sp.assigned_teacher_id,
+    }));
+  },
+
+  // Get interview history for a student (admission + fortnightly reviews)
+  getStudentInterviewHistory: async (studentId: string): Promise<any[]> => {
+    const { data, error } = await supabase
+      .from('interviews')
+      .select('*')
+      .eq('student_id', studentId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  // Submit a teacher progress report for a student
+  submitProgressReport: async (params: {
+    studentId: string;
+    teacherId: string;
+    progressNotes: string;
+    improvementPercentage: number;
+  }): Promise<void> => {
+    const { error } = await supabase
+      .from('student_progress_reports')
+      .insert({
+        student_id: params.studentId,
+        teacher_id: params.teacherId,
+        progress_notes: params.progressNotes,
+        improvement_percentage: params.improvementPercentage,
+      });
+
+    if (error) throw error;
+
+    // Notify the student
+    await supabase.from('notifications').insert({
+      user_id: params.studentId,
+      role: 'student',
+      notification_type: 'progress_report',
+      title: 'Progress Report Submitted',
+      message: `Your teacher has submitted a progress report. Improvement: ${params.improvementPercentage}%.`,
+      read: false,
+    });
+  },
+
+  // Get progress reports for a student
+  getStudentProgressReports: async (studentId: string): Promise<any[]> => {
+    const { data, error } = await supabase
+      .from('student_progress_reports')
+      .select('*, teacher:teacher_id(name)')
+      .eq('student_id', studentId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return (data || []).map((r: any) => ({
+      ...r,
+      teacher_name: r.teacher?.name,
+    }));
+  },
+
+  // Get notifications received by teacher
+  getTeacherNotifications: async (teacherId: string): Promise<any[]> => {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', teacherId)
+      .eq('role', 'teacher')
+      .order('created_at', { ascending: false })
+      .limit(30);
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  markNotificationRead: async (notificationId: string): Promise<void> => {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('id', notificationId);
+
+    if (error) throw error;
+  },
 };

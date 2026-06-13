@@ -3,7 +3,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { StudentAttendanceReport } from '../types';
-import { buildAttendanceReportHtml } from '../utils/pdfReportHtml';
+import { buildAttendanceReportHtml, buildReceiptHtml } from '../utils/pdfReportHtml';
 import { openExternalUrl } from '../utils/openExternalUrl';
 
 async function getLogoDataUri(): Promise<string | undefined> {
@@ -114,4 +114,32 @@ export const pdfReportService = {
   },
 
   getSuggestedFileName: buildFileName,
+
+  generateReceiptPdfUri: async (payment: any): Promise<string> => {
+    const logo = await getLogoDataUri();
+    const html = buildReceiptHtml(payment, logo);
+    const result = await Print.printToFileAsync({
+      html,
+      base64: false,
+    });
+    return result?.uri || '';
+  },
+
+  shareReceiptPdf: async (payment: any): Promise<void> => {
+    const uri = await pdfReportService.generateReceiptPdfUri(payment);
+    if (!uri) throw new Error('Receipt PDF generation failed');
+    const canShare = await Sharing.isAvailableAsync();
+    if (!canShare) throw new Error('Sharing is not available on this device.');
+    await Sharing.shareAsync(uri, {
+      mimeType: 'application/pdf',
+      dialogTitle: `Receipt ${payment.receipt_number}`,
+      UTI: 'com.adobe.pdf',
+    });
+  },
+
+  printReceipt: async (payment: any): Promise<void> => {
+    const logo = await getLogoDataUri();
+    const html = buildReceiptHtml(payment, logo);
+    await Print.printAsync({ html });
+  },
 };

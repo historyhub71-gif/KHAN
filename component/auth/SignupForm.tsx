@@ -7,7 +7,7 @@ import { Button } from '../common/Button';
 import { TextInput } from '../common/TextInput';
 
 interface SignupFormProps {
-  onSubmit: (email: string, password: string, name: string, role: 'teacher' | 'student') => Promise<void>;
+  onSubmit: (email: string, password: string, name: string, role: 'teacher' | 'student' | 'interviewer') => Promise<void>;
   onSignInPress?: () => void;
   isLoading?: boolean;
   error?: string;
@@ -24,7 +24,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [selectedRole, setSelectedRole] = useState<'teacher' | 'student' | null>(null);
+  const [selectedRole, setSelectedRole] = useState<'teacher' | 'student' | 'interviewer' | null>(null);
 
   const [nameError, setNameError] = useState('');
   const [emailError, setEmailError] = useState('');
@@ -186,7 +186,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({
               activeOpacity={0.7}
               style={[
                 styles.roleCard,
-                { borderColor: colors.border, backgroundColor: colors.surface },
+                { borderColor: colors.border, backgroundColor: colors.surface, padding: 12 },
                 selectedRole === 'teacher' && { 
                   borderColor: colors.primary, 
                   backgroundColor: colors.primary + '15' 
@@ -199,13 +199,13 @@ export const SignupForm: React.FC<SignupFormProps> = ({
               ]}>
                 <Ionicons 
                   name="school" 
-                  size={24} 
+                  size={20} 
                   color={selectedRole === 'teacher' ? colors.white : colors.textSecondary} 
                 />
               </View>
               <Text style={[
                 styles.roleText, 
-                { color: selectedRole === 'teacher' ? colors.primary : colors.text }
+                { color: selectedRole === 'teacher' ? colors.primary : colors.text, fontSize: 13 }
               ]}>Teacher</Text>
             </TouchableOpacity>
 
@@ -215,7 +215,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({
               activeOpacity={0.7}
               style={[
                 styles.roleCard,
-                { borderColor: colors.border, backgroundColor: colors.surface },
+                { borderColor: colors.border, backgroundColor: colors.surface, padding: 12 },
                 selectedRole === 'student' && { 
                   borderColor: colors.secondary, 
                   backgroundColor: colors.secondary + '15' 
@@ -228,14 +228,43 @@ export const SignupForm: React.FC<SignupFormProps> = ({
               ]}>
                 <Ionicons 
                   name="person" 
-                  size={24} 
+                  size={20} 
                   color={selectedRole === 'student' ? colors.white : colors.textSecondary} 
                 />
               </View>
               <Text style={[
                 styles.roleText, 
-                { color: selectedRole === 'student' ? colors.secondary : colors.text }
+                { color: selectedRole === 'student' ? colors.secondary : colors.text, fontSize: 13 }
               ]}>Student</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setSelectedRole('interviewer')}
+              disabled={isLoading}
+              activeOpacity={0.7}
+              style={[
+                styles.roleCard,
+                { borderColor: colors.border, backgroundColor: colors.surface, padding: 12 },
+                selectedRole === 'interviewer' && { 
+                  borderColor: colors.success, 
+                  backgroundColor: colors.success + '15' 
+                },
+              ]}
+            >
+              <View style={[
+                styles.roleIconContainer, 
+                { backgroundColor: selectedRole === 'interviewer' ? colors.success : colors.surface }
+              ]}>
+                <Ionicons 
+                  name="chatbubbles" 
+                  size={20} 
+                  color={selectedRole === 'interviewer' ? colors.white : colors.textSecondary} 
+                />
+              </View>
+              <Text style={[
+                styles.roleText, 
+                { color: selectedRole === 'interviewer' ? colors.success : colors.text, fontSize: 13 }
+              ]}>ASR</Text>
             </TouchableOpacity>
           </View>
           {roleError && <Text style={[styles.errorTextSmall, { color: colors.danger }]}>{roleError}</Text>}

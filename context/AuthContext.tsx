@@ -27,7 +27,7 @@ interface AuthContextType {
     email: string,
     password: string,
     name: string,
-    role: "teacher" | "student"
+    role: "teacher" | "student" | "interviewer"
   ) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -282,7 +282,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     email: string,
     password: string,
     name: string,
-    role: "teacher" | "student"
+    role: "teacher" | "student" | "interviewer"
   ) => {
     try {
       console.log('[AuthContext.signUp] Starting signup');
