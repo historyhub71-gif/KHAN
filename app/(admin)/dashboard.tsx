@@ -1,3 +1,4 @@
+import { feeService } from '@/services/feeService';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useFocusEffect } from '@react-navigation/native';
@@ -17,9 +18,7 @@ import {
 import { ScreenContainer } from '../../component/common/ScreenContainer';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
-import { adminService } from '../../services/adminService';
-import { feeService } from '../../services/feeService';
-import { interviewerService } from '../../services/interviewerService';
+import { dashboardService } from '../../services/dashboardService';
 import { supabase } from '../../utils/supabase';
 
 const Tab = createBottomTabNavigator();
@@ -76,7 +75,7 @@ function HomeTabScreen({
             <View style={styles.headerTextContainer}>
               <Text style={[styles.greeting, { color: colors.textSecondary }]}>Welcome back,</Text>
               <Text style={[styles.userName, { color: colors.text }]} numberOfLines={1}>
-                {user?.name}
+                {user?.name || 'Administrator'}
               </Text>
             </View>
           </View>
@@ -88,9 +87,58 @@ function HomeTabScreen({
         </View>
 
         {/* Section Title */}
-        <Text style={[styles.sectionTitleLabel, { color: colors.textSecondary }]}>Platform Overview</Text>
+        <Text style={[styles.sectionTitleLabel, { color: colors.textSecondary }]}>Admission Pipeline</Text>
 
-        {/* Stats Grid */}
+        {/* Admission Pipeline Grid */}
+        <View style={styles.statsCardGrid}>
+          {/* Pending Interviews */}
+          <TouchableOpacity
+            style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => router.push('/(admin)/interviews')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.itemIconContainer, { backgroundColor: colors.primary + '15' }]}>
+              <MaterialIcons name="assignment" size={24} color={colors.primary} />
+            </View>
+            <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.pendingInterviews || 0}</Text>
+            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Interviews Required</Text>
+          </TouchableOpacity>
+
+          {/* Pending Reviews (Admin Approval) */}
+          <TouchableOpacity
+            style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => router.push('/(admin)/interviews')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.itemIconContainer, { backgroundColor: colors.warning + '15' }]}>
+              <MaterialIcons name="rate-review" size={24} color={colors.warning} />
+            </View>
+            <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.pendingReviews || 0}</Text>
+            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Awaiting Admin Approval</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Action Button: Admission Hub */}
+        <TouchableOpacity
+          style={[styles.statusCard, { backgroundColor: colors.surface, borderColor: colors.border, marginTop: 12 }]}
+          onPress={() => router.push('/(admin)/students')}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.statusIconContainer, { backgroundColor: colors.secondary + '15' }]}>
+            <MaterialIcons name="double-arrow" size={22} color={colors.secondary} />
+          </View>
+          <View style={styles.statusTextContainer}>
+            <Text style={[styles.statusTitle, { color: colors.text }]}>Manage All Students</Text>
+            <Text style={[styles.statusDesc, { color: colors.textSecondary }]}>
+              Review interviewed students, approve admissions and view roster.
+            </Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={24} color={colors.textSecondary} />
+        </TouchableOpacity>
+
+        {/* Platform Overview */}
+        <Text style={[styles.sectionTitleLabel, { color: colors.textSecondary, marginTop: 24 }]}>Platform Overview</Text>
+
         <View style={styles.statsCardGrid}>
           {/* Teachers */}
           <TouchableOpacity
@@ -102,7 +150,7 @@ function HomeTabScreen({
               <MaterialIcons name="person" size={24} color={colors.primary} />
             </View>
             <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.teachers}</Text>
-            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Approved Teachers</Text>
+            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Active Teachers</Text>
           </TouchableOpacity>
 
           {/* Students */}
@@ -115,19 +163,23 @@ function HomeTabScreen({
               <MaterialIcons name="school" size={24} color={colors.warning} />
             </View>
             <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.students}</Text>
-            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Approved Students</Text>
+            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Enrolled Students</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.statsCardGrid}>
-          {/* Interviewers */}
-          <View style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          {/* Fee collection total */}
+          <TouchableOpacity
+            style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={() => router.push('/(admin)/fees')}
+            activeOpacity={0.7}
+          >
             <View style={[styles.itemIconContainer, { backgroundColor: colors.success + '15' }]}>
-              <MaterialIcons name="chat-bubble" size={24} color={colors.success} />
+              <MaterialIcons name="attach-money" size={24} color={colors.success} />
             </View>
-            <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.interviewers || 0}</Text>
-            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Active ASRs</Text>
-          </View>
+            <Text style={[styles.gridItemVal, { color: colors.success }]}>Rs. {(stats.feeCollections || 0).toFixed(0)}</Text>
+            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Fees Approved</Text>
+          </TouchableOpacity>
 
           {/* Today's Teacher Attendance */}
           <TouchableOpacity
@@ -139,35 +191,7 @@ function HomeTabScreen({
               <MaterialIcons name="check-circle" size={24} color={colors.secondary} />
             </View>
             <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.todayAttendance || 0}</Text>
-            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Teachers Present Today</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.statsCardGrid}>
-          {/* Pending Admission Interviews */}
-          <TouchableOpacity
-            style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => router.push('/(admin)/interviews')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.itemIconContainer, { backgroundColor: colors.primary + '15' }]}>
-              <MaterialIcons name="assignment" size={24} color={colors.primary} />
-            </View>
-            <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.pendingInterviews || 0}</Text>
-            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Pending Interviews</Text>
-          </TouchableOpacity>
-
-          {/* Pending 14-Day Reviews */}
-          <TouchableOpacity
-            style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            onPress={() => router.push('/(admin)/interviews')}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.itemIconContainer, { backgroundColor: colors.warning + '15' }]}>
-              <MaterialIcons name="rate-review" size={24} color={colors.warning} />
-            </View>
-            <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.pendingReviews || 0}</Text>
-            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Pending 14-Day Reviews</Text>
+            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Teachers Present</Text>
           </TouchableOpacity>
         </View>
 
@@ -610,52 +634,15 @@ export default function AdminDashboardScreen() {
 
   const fetchStats = useCallback(async (isRefresh = false) => {
     try {
-      if (!isRefresh) {
-        setIsLoading(true);
-      }
-
-      const todayStr = new Date().toISOString().slice(0, 10);
-
-      const [
-        teachers,
-        students,
-        courses,
-        interviewersRes,
-        attendanceTodayRes,
-        pendingInts,
-        pendingRevs,
-        feesData
-      ] = await Promise.all([
-        adminService.getTeachers(),
-        adminService.getStudents(),
-        adminService.getCourses(),
-        supabase.from('profiles').select('id').eq('role', 'interviewer').eq('approved', true),
-        supabase.from('teacher_attendance').select('id').eq('date', todayStr).eq('status', 'present'),
-        interviewerService.getNewStudents().catch(() => []),
-        interviewerService.getPendingProgressReviews().catch(() => []),
-        supabase.from('fee_payments').select('amount').eq('status', 'approved').is('deleted_at', null),
-      ]);
-
-      const approvedTeachers = teachers.filter((t) => t.approved === true);
-      const approvedStudents = students.filter((s) => s.approved === true);
-      const approvedInterviewersCount = interviewersRes.data?.length || 0;
-      const presentTeachersCount = attendanceTodayRes.data?.length || 0;
-      const totalFeesCollected = feesData.data?.reduce((acc, f) => acc + Number(f.amount), 0) || 0;
-
-      setStats({
-        teachers: approvedTeachers.length,
-        students: approvedStudents.length,
-        courses: courses.length,
-        interviewers: approvedInterviewersCount,
-        todayAttendance: presentTeachersCount,
-        pendingInterviews: pendingInts.length,
-        pendingReviews: pendingRevs.length,
-        feeCollections: totalFeesCollected,
-      });
+      if (!isRefresh) setIsLoading(true);
+      const data = await dashboardService.getAdminStats();
+      setStats(data);
+      console.log("Admin data", data);
     } catch (err) {
-      console.error(err);
+      console.error('Failed to fetch admin stats:', err);
     } finally {
       setIsLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -672,14 +659,8 @@ export default function AdminDashboardScreen() {
   }, [user, authLoading, router]);
 
   const onRefresh = async () => {
-    try {
-      setRefreshing(true);
-      await fetchStats(true);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setRefreshing(false);
-    }
+    setRefreshing(true);
+    await fetchStats(true);
   };
 
   const handleLogout = async () => {
@@ -694,91 +675,93 @@ export default function AdminDashboardScreen() {
   if (!user) return null;
 
   return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ color, size, focused }) => {
-          let iconName: keyof typeof Ionicons.glyphMap = 'home-outline';
-          if (route.name === 'Home') {
-            iconName = focused ? 'home' : 'home-outline';
-          } else if (route.name === 'Attendance') {
-            iconName = focused ? 'stats-chart' : 'stats-chart-outline';
-          } else if (route.name === 'Courses') {
-            iconName = focused ? 'folder-open' : 'folder-open-outline';
-          } else if (route.name === 'Profile') {
-            iconName = focused ? 'person' : 'person-outline';
-          }
-          return (
-            <View style={styles.tabIconBg}>
-              <Ionicons name={iconName} size={24} color={color} />
-            </View>
-          );
-        },
-        tabBarActiveTintColor: colors.danger,
-        tabBarInactiveTintColor: colors.textSecondary,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: 0,
-          height: 98,
-          paddingBottom: 10,
-          paddingTop: 8,
-          elevation: 12,
-          shadowColor: '#9b1313ff',
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.12,
-          shadowRadius: 10,
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '500',
-          marginTop: -2,
-        },
-        headerShown: false,
-      })}
-    >
-      <Tab.Screen name="Home">
-        {() => (
-          <HomeTabScreen
-            user={user}
-            stats={stats}
-            isLoading={isLoading}
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            router={router}
-            colors={colors}
-          />
-        )}
-      </Tab.Screen>
-      <Tab.Screen name="Attendance">
-        {() => (
-          <AttendanceTabScreen
-            colors={colors}
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-          />
-        )}
-      </Tab.Screen>
-      <Tab.Screen name="Courses">
-        {() => (
-          <CoursesTabScreen
-            router={router}
-            colors={colors}
-          />
-        )}
-      </Tab.Screen>
-      <Tab.Screen name="Profile">
-        {() => (
-          <ProfileTabScreen
-            user={user}
-            colors={colors}
-            isDark={isDark}
-            toggleTheme={toggleTheme}
-            handleLogout={handleLogout}
-            router={router}
-          />
-        )}
-      </Tab.Screen>
-    </Tab.Navigator>
+    <>
+      <Tab.Navigator
+        screenOptions={({ route }) => ({
+          tabBarIcon: ({ color, size, focused }) => {
+            let iconName: keyof typeof Ionicons.glyphMap = 'home-outline';
+            if (route.name === 'Home') {
+              iconName = focused ? 'home' : 'home-outline';
+            } else if (route.name === 'Attendance') {
+              iconName = focused ? 'stats-chart' : 'stats-chart-outline';
+            } else if (route.name === 'Courses') {
+              iconName = focused ? 'folder-open' : 'folder-open-outline';
+            } else if (route.name === 'Profile') {
+              iconName = focused ? 'person' : 'person-outline';
+            }
+            return (
+              <View style={styles.tabIconBg}>
+                <Ionicons name={iconName} size={24} color={color} />
+              </View>
+            );
+          },
+          tabBarActiveTintColor: colors.danger,
+          tabBarInactiveTintColor: colors.textSecondary,
+          tabBarStyle: {
+            backgroundColor: colors.surface,
+            borderTopColor: colors.border,
+            borderTopWidth: 0,
+            height: 98,
+            paddingBottom: 10,
+            paddingTop: 8,
+            elevation: 12,
+            shadowColor: colors.danger,
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.12,
+            shadowRadius: 10,
+          },
+          tabBarLabelStyle: {
+            fontSize: 11,
+            fontWeight: '500',
+            marginTop: -2,
+          },
+          headerShown: false,
+        })}
+      >
+        <Tab.Screen name="Home">
+          {() => (
+            <HomeTabScreen
+              user={user}
+              stats={stats}
+              isLoading={isLoading}
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              router={router}
+              colors={colors}
+            />
+          )}
+        </Tab.Screen>
+        <Tab.Screen name="Attendance">
+          {() => (
+            <AttendanceTabScreen
+              colors={colors}
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+            />
+          )}
+        </Tab.Screen>
+        <Tab.Screen name="Courses">
+          {() => (
+            <CoursesTabScreen
+              router={router}
+              colors={colors}
+            />
+          )}
+        </Tab.Screen>
+        <Tab.Screen name="Profile">
+          {() => (
+            <ProfileTabScreen
+              user={user}
+              colors={colors}
+              isDark={isDark}
+              toggleTheme={toggleTheme}
+              handleLogout={handleLogout}
+              router={router}
+            />
+          )}
+        </Tab.Screen>
+      </Tab.Navigator>
+    </>
   );
 }
 
@@ -857,7 +840,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   sectionTitleLabel: {
-    fontSize: 11.5,
+    fontSize: 18.5,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -890,8 +873,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   gridItemVal: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '500',
   },
   gridItemLabel: {
     fontSize: 11,
@@ -909,8 +892,8 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   statusIconContainer: {
-    width: 42,
-    height: 42,
+    width: 32,
+    height: 32,
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
@@ -919,11 +902,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statusTitle: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '500',
   },
   statusDesc: {
-    fontSize: 12,
+    fontSize: 11,
     marginTop: 2,
     lineHeight: 16,
   },
@@ -931,11 +914,11 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   tabTitle: {
-    fontSize: 22,
+    fontSize: 19,
     fontWeight: '800',
   },
   tabSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     marginTop: 4,
   },
   globalRateCard: {
@@ -997,7 +980,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   actionCardTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
   },
   actionCardDesc: {

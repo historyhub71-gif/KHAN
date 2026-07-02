@@ -1,9 +1,18 @@
-import { Stack } from 'expo-router';
-import React from 'react';
+import { Stack, useRouter } from 'expo-router';
+import React, { useEffect } from 'react';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function StudentLayout() {
   const { colors } = useTheme();
+  const { user } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (user && (user.status !== 'approved' || !user.approved)) {
+      router.replace('/(auth)/pending-approval');
+    }
+  }, [user, router]);
 
   return (
     <Stack

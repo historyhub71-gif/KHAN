@@ -15,36 +15,28 @@ import {
 } from 'react-native';
 import { ScreenContainer } from '../../component/common/ScreenContainer';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../hooks/useAuth';
 import { adminService } from '../../services/adminService';
-import { Profile, StudentProfile } from '../../types';
+import { admissionService } from '../../services/admissionService';
+import { Course, Profile, StudentProfile } from '../../types';
 
 type StudentWithProfile = Profile & { studentProfile?: StudentProfile };
 
 export default function StudentsScreen() {
   const { colors } = useTheme();
+  const { user } = useAuth();
   const [students, setStudents] = useState<StudentWithProfile[]>([]);
-  const [teachers, setTeachers] = useState<Profile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
-  // Admit modal state
-  const [admitTarget, setAdmitTarget] = useState<StudentWithProfile | null>(null);
-  const [assignedTeacherId, setAssignedTeacherId] = useState('');
-  const [classText, setClassText] = useState('');
-  const [sectionText, setSectionText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      const [studentsData, teachersData] = await Promise.all([
-        adminService.getStudentsWithProfiles(),
-        adminService.getTeachers(),
-      ]);
-      setStudents(studentsData);
-      setTeachers(teachersData.filter((t) => t.approved));
+      const studentData = await adminService.getStudentsWithProfiles();
+      setStudents(studentData);
     } catch (err) {
       console.error(err);
-      Alert.alert('Error', 'Failed to load students');
+      Alert.alert('Error', 'Failed to load data');
     } finally {
       setIsLoading(false);
       setRefreshing(false);
@@ -62,36 +54,63 @@ export default function StudentsScreen() {
     fetchData();
   };
 
-  const handleDelete = (studentId: string) => {
-    Alert.alert('Delete Student', 'Are you sure you want to delete this student?', [
-      { text: 'Cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await adminService.deleteStudent(studentId);
-            fetchData();
-            Alert.alert('Success', 'Student deleted successfully');
-          } catch (err) {
-            Alert.alert('Error', 'Failed to delete student');
-          }
+  const handleDelete = (student: StudentWithProfile) => {
+    Alert.alert(
+      'Delete Student',
+      `Permanently delete "${student.name}"?\n\nThis will remove all their records including attendance, fees, interviews, notifications, and revoke login access. This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            // Optimistic UI: remove instantly from visible list
+            setStudents((prev) => prev.filter((s) => s.id !== student.id));
+            try {
+              await adminService.deleteStudent(student.id);
+              Alert.alert('Deleted', `${student.name} has been completely removed from the system.`);
+            } catch (_err: any) {
+              // Rollback: restore student in list if deletion failed
+              setStudents((prev) => {
+                const exists = prev.some((s) => s.id === student.id);
+                if (exists) return prev;
+                return [student, ...prev];
+              });
+              Alert.alert('Error', _err?.message || 'Failed to delete student. Please try again.');
+            }
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
-  const handleApprove = async (studentId: string) => {
+  const handleApprove = async (student: StudentWithProfile) => {
+    if (!user?.id) return;
     try {
-      await adminService.approveStudent(studentId);
+      setIsSubmitting(true);
+      if ((student as any).pendingInterviewId) {
+        // If there's an interview, use the unified workflow (which handles teacher, enroll, etc.)
+        await admissionService.approveStudentAdmissionWorkflow({
+          interviewId: (student as any).pendingInterviewId,
+          adminId: user.id,
+          notes: 'Approved via Student Management dashboard',
+        });
+        Alert.alert('Success', 'Admission approved! Student is now active and enrolled.');
+      } else {
+        // Fallback for simple approval
+        await adminService.approveStudent(student.id);
+        Alert.alert('Success', 'Student profile approved.');
+      }
       fetchData();
-      Alert.alert('Success', 'Student approved successfully');
-    } catch (err) {
-      Alert.alert('Error', 'Failed to approve student');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to approve student');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleReject = async (studentId: string) => {
+  const handleReject = async (student: StudentWithProfile) => {
+    if (!user?.id) return;
     Alert.alert('Reject Student', 'Are you sure you want to reject this student?', [
       { text: 'Cancel' },
       {
@@ -99,50 +118,26 @@ export default function StudentsScreen() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await adminService.rejectStudent(studentId);
+            setIsSubmitting(true);
+            if ((student as any).pendingInterviewId) {
+              await admissionService.rejectStudentAdmissionWorkflow({
+                interviewId: (student as any).pendingInterviewId,
+                adminId: user.id,
+                notes: 'Rejected via Student Management dashboard',
+              });
+            } else {
+              await adminService.rejectStudent(student.id);
+            }
             fetchData();
             Alert.alert('Success', 'Student rejected');
-          } catch (err) {
+          } catch (_err) {
             Alert.alert('Error', 'Failed to reject student');
+          } finally {
+            setIsSubmitting(false);
           }
         },
       },
     ]);
-  };
-
-  const openAdmitModal = (student: StudentWithProfile) => {
-    setAdmitTarget(student);
-    setAssignedTeacherId(student.studentProfile?.assigned_teacher_id || '');
-    setClassText(student.studentProfile?.class || '');
-    setSectionText(student.studentProfile?.section || '');
-  };
-
-  const handleAdmit = async () => {
-    if (!admitTarget) return;
-    if (!assignedTeacherId.trim()) {
-      Alert.alert('Validation', 'Please select an assigned teacher.');
-      return;
-    }
-    if (!classText.trim() || !sectionText.trim()) {
-      Alert.alert('Validation', 'Please enter class and section.');
-      return;
-    }
-    try {
-      setIsSubmitting(true);
-      await adminService.admitStudent({
-        studentId: admitTarget.id,
-        assignedTeacherId,
-        class: classText.trim(),
-        section: sectionText.trim(),
-      });
-      Alert.alert('Success', `${admitTarget.name} has been formally admitted.`);
-      setAdmitTarget(null);
-      fetchData();
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to admit student');
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
   const getLevelColor = (level: string | null) => {
@@ -156,6 +151,14 @@ export default function StudentsScreen() {
 
   const isAdmitted = (s: StudentWithProfile) =>
     !!(s.studentProfile?.assigned_teacher_id && s.studentProfile?.class);
+
+  const getAdmissionStatus = (s: StudentWithProfile) => {
+    if (isAdmitted(s)) return { label: 'ADMITTED', color: colors.success };
+    if (s.approved) return { label: 'APPROVED (READY)', color: colors.primary };
+    if (s.status === 'rejected') return { label: 'REJECTED', color: colors.danger };
+    if (s.status === 'waiting_approval') return { label: 'INTERVIEW PENDING', color: colors.warning };
+    return { label: 'PENDING', color: colors.textSecondary };
+  };
 
   if (isLoading) {
     return (
@@ -221,25 +224,13 @@ export default function StudentsScreen() {
                 </View>
                 <View style={[
                   styles.statusBadge,
-                  {
-                    backgroundColor: student.approved
-                      ? colors.success + '20'
-                      : student.status === 'rejected'
-                        ? colors.danger + '20'
-                        : colors.warning + '20'
-                  }
+                  { backgroundColor: getAdmissionStatus(student).color + '20' }
                 ]}>
                   <Text style={[
                     styles.statusBadgeText,
-                    {
-                      color: student.approved
-                        ? colors.success
-                        : student.status === 'rejected'
-                          ? colors.danger
-                          : colors.warning
-                    }
+                    { color: getAdmissionStatus(student).color }
                   ]}>
-                    {student.approved ? 'APPROVED' : student.status === 'rejected' ? 'REJECTED' : 'PENDING'}
+                    {getAdmissionStatus(student).label}
                   </Text>
                 </View>
               </View>
@@ -284,27 +275,27 @@ export default function StudentsScreen() {
                 {!student.approved && student.status !== 'rejected' && (
                   <TouchableOpacity
                     style={[styles.actionBtn, { backgroundColor: colors.success }]}
-                    onPress={() => handleApprove(student.id)}
+                    onPress={() => handleApprove(student)}
+                    disabled={isSubmitting}
                   >
-                    <Ionicons name="checkmark" size={14} color="#fff" />
-                    <Text style={styles.actionBtnText}>Approve</Text>
-                  </TouchableOpacity>
-                )}
-
-                {student.approved && (
-                  <TouchableOpacity
-                    style={[styles.actionBtn, { backgroundColor: isAdmitted(student) ? colors.secondary : colors.primary }]}
-                    onPress={() => openAdmitModal(student)}
-                  >
-                    <Ionicons name={isAdmitted(student) ? 'create-outline' : 'school'} size={14} color="#fff" />
-                    <Text style={styles.actionBtnText}>{isAdmitted(student) ? 'Edit Admission' : 'Admit Student'}</Text>
+                    {isSubmitting ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="checkmark" size={14} color="#fff" />
+                        <Text style={styles.actionBtnText}>
+                          {(student as any).pendingInterviewId ? 'Review & Approve' : 'Approve'}
+                        </Text>
+                      </>
+                    )}
                   </TouchableOpacity>
                 )}
 
                 {student.status !== 'rejected' && (
                   <TouchableOpacity
                     style={[styles.actionBtn, { backgroundColor: colors.warning + 'cc' }]}
-                    onPress={() => handleReject(student.id)}
+                    onPress={() => handleReject(student)}
+                    disabled={isSubmitting}
                   >
                     <Ionicons name="close" size={14} color="#fff" />
                     <Text style={styles.actionBtnText}>Reject</Text>
@@ -313,7 +304,8 @@ export default function StudentsScreen() {
 
                 <TouchableOpacity
                   style={[styles.actionBtn, { backgroundColor: colors.danger }]}
-                  onPress={() => handleDelete(student.id)}
+                  onPress={() => handleDelete(student)}
+                  disabled={isSubmitting}
                 >
                   <Ionicons name="trash" size={14} color="#fff" />
                   <Text style={styles.actionBtnText}>Delete</Text>
@@ -323,82 +315,6 @@ export default function StudentsScreen() {
           ))
         )}
       </ScrollView>
-
-      {/* Admit Modal */}
-      <Modal visible={admitTarget !== null} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
-              <View>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>Formal Admission</Text>
-                <Text style={[styles.modalSub, { color: colors.textSecondary }]}>
-                  {admitTarget?.name}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => setAdmitTarget(null)}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView contentContainerStyle={{ padding: 20 }}>
-              <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Assign Teacher</Text>
-              <View style={[styles.teacherPickerContainer, { borderColor: colors.border }]}>
-                {teachers.length === 0 ? (
-                  <Text style={{ color: colors.textSecondary, padding: 12 }}>No approved teachers available.</Text>
-                ) : (
-                  teachers.map((t) => (
-                    <TouchableOpacity
-                      key={t.id}
-                      style={[
-                        styles.teacherPickerItem,
-                        { borderColor: colors.border },
-                        assignedTeacherId === t.id && { backgroundColor: colors.primary + '15', borderColor: colors.primary },
-                      ]}
-                      onPress={() => setAssignedTeacherId(t.id)}
-                    >
-                      <View style={[styles.teacherPickerDot, { backgroundColor: assignedTeacherId === t.id ? colors.primary : colors.border }]} />
-                      <Text style={[styles.teacherPickerName, { color: colors.text }]}>{t.name}</Text>
-                    </TouchableOpacity>
-                  ))
-                )}
-              </View>
-
-              <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 16 }]}>Class</Text>
-              <TextInput
-                style={[styles.textInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                placeholder="e.g. 10A, Grade 5"
-                placeholderTextColor={colors.textSecondary}
-                value={classText}
-                onChangeText={setClassText}
-              />
-
-              <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 16 }]}>Section</Text>
-              <TextInput
-                style={[styles.textInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
-                placeholder="e.g. A, B, Morning"
-                placeholderTextColor={colors.textSecondary}
-                value={sectionText}
-                onChangeText={setSectionText}
-              />
-
-              <TouchableOpacity
-                style={[styles.submitBtn, { backgroundColor: isSubmitting ? colors.border : colors.primary }]}
-                onPress={handleAdmit}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="school" size={16} color="#fff" />
-                    <Text style={styles.submitBtnText}>Confirm Admission</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
     </ScreenContainer>
   );
 }

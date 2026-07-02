@@ -14,7 +14,6 @@ import {
 import { ScreenContainer } from '../../component/common/ScreenContainer';
 import { useTheme } from '../../context/ThemeContext';
 import { adminService } from '../../services/adminService';
-import { feeService } from '../../services/feeService';
 import { salaryService } from '../../services/salaryService';
 import { supabase } from '../../utils/supabase';
 
@@ -273,11 +272,11 @@ function ABreakdown({ label, count, color }: { label: string; count: number; col
 const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 40 },
-  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   headerIconBg: { width: 52, height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
   headerText: { flex: 1 },
   title: { fontSize: 22, fontWeight: '700', marginBottom: 3 },
-  subtitle: { fontSize: 13 },
+  subtitle: { fontSize: 9 },
   monthNav: {
     flexDirection: 'row', alignItems: 'center', borderRadius: 14,
     borderWidth: 1, marginBottom: 20, overflow: 'hidden',
@@ -289,22 +288,22 @@ const styles = StyleSheet.create({
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12, marginTop: 6 },
   sectionIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   sectionLabel: { fontSize: 16, fontWeight: '700' },
-  statsGrid: { flexDirection: 'row', gap: 10, marginBottom: 20, flexWrap: 'wrap' },
+  statsGrid: { flexDirection: 'row', gap: 10, marginBottom: 10, flexWrap: 'wrap' },
   statCard: {
-    flex: 1, minWidth: '28%', borderRadius: 14, padding: 14,
+    flex: 1, minWidth: '40%', borderRadius: 8, padding: 5,
     borderWidth: 1, alignItems: 'center',
   },
-  statIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  statValue: { fontSize: 20, fontWeight: '800', marginBottom: 2 },
-  statLabel: { fontSize: 12, fontWeight: '600', textAlign: 'center', marginBottom: 2 },
-  statSub: { fontSize: 10, textAlign: 'center' },
+  statIcon: { width: 56, height: 16, borderRadius: 10, alignItems: 'center', marginBottom: 4 },
+  statValue: { fontSize: 17, fontWeight: '400', marginBottom: 2, textAlign: 'center', },
+  statLabel: { fontSize: 15, fontWeight: '400', textAlign: 'left', marginBottom: 2 },
+  statSub: { fontSize: 1, textAlign: 'left' },
   // Attendance Box
   attendanceBox: {
     borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 20,
   },
   attendanceRateRow: { alignItems: 'center', marginBottom: 10 },
-  attendanceRateVal: { fontSize: 36, fontWeight: '800' },
-  attendanceRateLabel: { fontSize: 13, marginTop: 2 },
+  attendanceRateVal: { fontSize: 26, fontWeight: '800' },
+  attendanceRateLabel: { fontSize: 12, marginTop: 2 },
   progressBarBg: { height: 8, borderRadius: 4, overflow: 'hidden', marginBottom: 16 },
   progressBarFill: { height: '100%', borderRadius: 4 },
   attendanceBreakdown: { flexDirection: 'row', justifyContent: 'space-around' },

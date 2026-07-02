@@ -19,6 +19,7 @@ interface UserListProps {
   onDeletePress?: (userId: string) => void;
   onApprovePress?: (userId: string) => void;
   onRejectPress?: (userId: string) => void;
+  onSetTimePress?: (user: Profile) => void;
   selectable?: boolean;
   selectedIds?: Set<string>;
   onToggleSelect?: (userId: string) => void;
@@ -31,6 +32,7 @@ export const UserList: React.FC<UserListProps> = ({
   onDeletePress,
   onApprovePress,
   onRejectPress,
+  onSetTimePress,
   selectable,
   selectedIds,
   onToggleSelect,
@@ -75,11 +77,26 @@ export const UserList: React.FC<UserListProps> = ({
                 )}
               </View>
               <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{item.email}</Text>
-              <View style={[styles.roleLabel, { backgroundColor: colors.background }]}>
-                <Text style={[styles.roleLabelText, { color: colors.textSecondary }]}>
-                  {item.role?.toUpperCase() || 'USER'}
-                </Text>
-              </View>
+              {item.role === 'teacher' ? (
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                  <View style={[styles.roleLabel, { backgroundColor: colors.background }]}>
+                    <Text style={[styles.roleLabelText, { color: colors.textSecondary }]}>
+                      {item.role?.toUpperCase() || 'USER'}
+                    </Text>
+                  </View>
+                  <View style={[styles.roleLabel, { backgroundColor: colors.primary + '15' }]}>
+                    <Text style={[styles.roleLabelText, { color: colors.primary }]}>
+                      Time: {item.official_check_in_time || 'Not Set'}
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={[styles.roleLabel, { backgroundColor: colors.background }]}>
+                  <Text style={[styles.roleLabelText, { color: colors.textSecondary }]}>
+                    {item.role?.toUpperCase() || 'USER'}
+                  </Text>
+                </View>
+              )}
             </View>
 
             {selectable ? (
@@ -92,52 +109,94 @@ export const UserList: React.FC<UserListProps> = ({
               </View>
             ) : (
               <View style={styles.actions}>
-                {!item.approved && onApprovePress && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: colors.success + '10' }]}
-                    onPress={() => onApprovePress(item.id)}
-                  >
-                    <MaterialIcons
-                      name="check"
-                      size={20}
-                      color={colors.success}
-                    />
-                  </TouchableOpacity>
-                )}
+                {item.role === 'teacher' ? (
+                  // Teachers: Approve & Set Time button (pending) OR Edit Time button (approved)
+                  <>
+                    <TouchableOpacity
+                      style={[
+                        styles.actionButton,
+                        styles.setTimeButton,
+                        {
+                          backgroundColor: item.approved
+                            ? colors.primary + '15'
+                            : colors.success + '15',
+                        },
+                      ]}
+                      onPress={() => onSetTimePress?.(item)}
+                    >
+                      <MaterialIcons
+                        name={item.approved ? 'edit' : 'schedule'}
+                        size={18}
+                        color={item.approved ? colors.primary : colors.success}
+                      />
+                    </TouchableOpacity>
 
-                {item.approved && onRejectPress && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: colors.warning + '10' }]}
-                    onPress={() => onRejectPress(item.id)}
-                  >
-                    <MaterialIcons
-                      name="block"
-                      size={18}
-                      color={colors.warning}
-                    />
-                  </TouchableOpacity>
-                )}
+                    {item.approved && onRejectPress && (
+                      <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: colors.warning + '10' }]}
+                        onPress={() => onRejectPress(item.id)}
+                      >
+                        <MaterialIcons name="block" size={18} color={colors.warning} />
+                      </TouchableOpacity>
+                    )}
 
-                {!item.approved && onRejectPress && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: colors.danger + '10' }]}
-                    onPress={() => onRejectPress(item.id)}
-                  >
-                    <MaterialIcons
-                      name="close"
-                      size={20}
-                      color={colors.danger}
-                    />
-                  </TouchableOpacity>
-                )}
+                    {!item.approved && onRejectPress && (
+                      <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: colors.danger + '10' }]}
+                        onPress={() => onRejectPress(item.id)}
+                      >
+                        <MaterialIcons name="close" size={20} color={colors.danger} />
+                      </TouchableOpacity>
+                    )}
 
-                {onDeletePress && (
-                  <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: colors.danger + '10' }]}
-                    onPress={() => onDeletePress(item.id)}
-                  >
-                    <MaterialIcons name="delete-outline" size={20} color={colors.danger} />
-                  </TouchableOpacity>
+                    {onDeletePress && (
+                      <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: colors.danger + '10' }]}
+                        onPress={() => onDeletePress(item.id)}
+                      >
+                        <MaterialIcons name="delete-outline" size={20} color={colors.danger} />
+                      </TouchableOpacity>
+                    )}
+                  </>
+                ) : (
+                  // Non-teachers: standard approve/reject/delete
+                  <>
+                    {!item.approved && onApprovePress && (
+                      <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: colors.success + '10' }]}
+                        onPress={() => onApprovePress(item.id)}
+                      >
+                        <MaterialIcons name="check" size={20} color={colors.success} />
+                      </TouchableOpacity>
+                    )}
+
+                    {item.approved && onRejectPress && (
+                      <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: colors.warning + '10' }]}
+                        onPress={() => onRejectPress(item.id)}
+                      >
+                        <MaterialIcons name="block" size={18} color={colors.warning} />
+                      </TouchableOpacity>
+                    )}
+
+                    {!item.approved && onRejectPress && (
+                      <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: colors.danger + '10' }]}
+                        onPress={() => onRejectPress(item.id)}
+                      >
+                        <MaterialIcons name="close" size={20} color={colors.danger} />
+                      </TouchableOpacity>
+                    )}
+
+                    {onDeletePress && (
+                      <TouchableOpacity
+                        style={[styles.actionButton, { backgroundColor: colors.danger + '10' }]}
+                        onPress={() => onDeletePress(item.id)}
+                      >
+                        <MaterialIcons name="delete-outline" size={20} color={colors.danger} />
+                      </TouchableOpacity>
+                    )}
+                  </>
                 )}
               </View>
             )}
@@ -221,6 +280,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  setTimeButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
   },
   checkboxContainer: {
     justifyContent: 'center',

@@ -36,7 +36,7 @@ async function main() {
   if (error) {
     console.error('NOT READY:', error.message);
     console.error('Run: node scripts/apply-supabase-sql.js YOUR_DB_PASSWORD');
-    console.error('Or paste supabase/RUN_ALL_SETUP.sql in Supabase SQL Editor.');
+    console.error('Or paste supabase/MASTER_SETUP.sql in Supabase SQL Editor.');
     process.exit(1);
   }
 

@@ -1,5 +1,6 @@
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Print from 'expo-print';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,8 +19,6 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
 import { feeService } from '../../services/feeService';
 import { pdfReportService } from '../../services/pdfReportService';
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 
 type TabKey = 'all' | 'PAID' | 'UNPAID' | 'OVERDUE';
 type DateFilterKey = 'all' | 'today' | 'month';
@@ -308,7 +307,7 @@ export default function AdminFeesScreen() {
             <Text style={[styles.gridItemVal, { color: colors.primary }]}>
               {formatCurrency(todayCollections)}
             </Text>
-            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Today's Collections</Text>
+            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>{"Today's Collections"}</Text>
           </View>
         </View>
 
@@ -476,8 +475,8 @@ export default function AdminFeesScreen() {
                             (item.status === 'PAID'
                               ? colors.success
                               : item.status === 'OVERDUE'
-                              ? colors.danger
-                              : colors.warning) + '15',
+                                ? colors.danger
+                                : colors.warning) + '15',
                         },
                       ]}
                     >
@@ -489,8 +488,8 @@ export default function AdminFeesScreen() {
                               item.status === 'PAID'
                                 ? colors.success
                                 : item.status === 'OVERDUE'
-                                ? colors.danger
-                                : colors.warning,
+                                  ? colors.danger
+                                  : colors.warning,
                           },
                         ]}
                       >
@@ -598,8 +597,8 @@ export default function AdminFeesScreen() {
                           (selectedRecord.status === 'PAID'
                             ? colors.success
                             : selectedRecord.status === 'OVERDUE'
-                            ? colors.danger
-                            : colors.warning) + '15',
+                              ? colors.danger
+                              : colors.warning) + '15',
                       },
                     ]}
                   >
@@ -611,8 +610,8 @@ export default function AdminFeesScreen() {
                             selectedRecord.status === 'PAID'
                               ? colors.success
                               : selectedRecord.status === 'OVERDUE'
-                              ? colors.danger
-                              : colors.warning,
+                                ? colors.danger
+                                : colors.warning,
                         },
                       ]}
                     >
@@ -726,7 +725,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   headerIconBg: { width: 52, height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
   headerText: { flex: 1 },
-  title: { fontSize: 20, fontWeight: '700', marginBottom: 3 },
+  title: { fontSize: 16, fontWeight: '700', marginBottom: 3 },
   subtitle: { fontSize: 12.5, lineHeight: 17 },
   sectionTitleLabel: { fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: '700', marginBottom: 10, marginTop: 10 },
   statsCardGrid: { flexDirection: 'row', gap: 12, marginBottom: 12 },

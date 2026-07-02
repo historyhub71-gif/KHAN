@@ -2,6 +2,7 @@ import * as Linking from "expo-linking";
 import { Stack, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useContext, useEffect } from "react";
+import { LogBox } from "react-native";
 import { AuthContext, AuthProvider } from "../context/AuthContext";
 import { NotificationProvider } from "../context/NotificationContext";
 import { ThemeProvider } from "../context/ThemeContext";
@@ -11,6 +12,13 @@ import {
   markRecoverySessionReady
 } from "../utils/recoveryLink";
 import { supabase } from "../utils/supabase";
+
+// expo-notifications native push is not available in Expo Go (SDK 53+).
+// This suppresses the package's own internal console warning so it does not
+// appear as a red LogBox error. All in-app (Supabase) notifications still work.
+LogBox.ignoreLogs([
+  'expo-notifications: Android Push notifications (remote notifications) functionality provided by expo-notifications was removed from Expo Go',
+]);
 
 // Hiding splash screen immediately to prevent native white splash screen on app entrance
 SplashScreen.hideAsync().catch(() => {});

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useState, useEffect } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Animated } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { Validation, ValidationMessages } from '../../utils/validation';
 import { Button } from '../common/Button';
@@ -26,7 +26,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const [password, setPassword] = useState('');
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
-  
+
   // Animation state
   const [fadeAnim] = useState(new Animated.Value(0));
 
@@ -86,7 +86,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
       {error && (
         <Animated.View style={[
-          styles.errorAlert, 
+          styles.errorAlert,
           { backgroundColor: colors.danger + '10', borderColor: colors.danger, opacity: fadeAnim }
         ]}>
           <Ionicons name="alert-circle" size={20} color={colors.danger} />
@@ -120,7 +120,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           leftIcon={<Ionicons name="lock-closed-outline" size={20} color={colors.textSecondary} />}
         />
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.forgotPassword}
           onPress={onForgotPasswordPress}
           disabled={isLoading}
@@ -136,6 +136,40 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           size="large"
           style={[styles.submitButton, { backgroundColor: colors.primary }]}
         />
+
+        {__DEV__ && (
+          <View style={styles.devSection}>
+            <View style={styles.devDivider}>
+              <View style={[styles.devDividerLine, { backgroundColor: colors.border }]} />
+              <Text style={[styles.devLabel, { color: colors.textSecondary, backgroundColor: colors.background }]}>
+                DEV QUICK LOGIN
+              </Text>
+              <View style={[styles.devDividerLine, { backgroundColor: colors.border }]} />
+            </View>
+            <View style={styles.devButtons}>
+              {[
+                { label: '👨‍💼 Admin', email: 'hasherkhano097@gmail.com', password: '369258' },
+                { label: '🎓 Student', email: 'ansar@gmail.com', password: '123456' },
+                { label: '👨‍🏫 Teacher', email: 'khan@gmail.com', password: '123456' },
+                { label: '💰 Director', email: 'hafiz@gmail.com', password: '123456' },
+                { label: '📝 ASR', email: 'iqrar@gmail.com', password: '123456' },
+              ].map((acc) => (
+                <TouchableOpacity
+                  key={acc.email}
+                  style={[styles.devButton, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '40' }]}
+                  onPress={() => {
+                    setEmail(acc.email);
+                    setPassword(acc.password);
+                    onSubmit(acc.email, acc.password).catch(console.error);
+                  }}
+                  disabled={isLoading}
+                >
+                  <Text style={[styles.devButtonText, { color: colors.primary }]}>{acc.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
       </Animated.View>
 
       <Animated.View style={[styles.footer, { opacity: fadeAnim }]}>
@@ -231,5 +265,40 @@ const styles = StyleSheet.create({
   footerLink: {
     fontSize: 14,
     fontWeight: '800',
+  },
+  devSection: {
+    marginTop: 24,
+  },
+  devDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+    gap: 8,
+  },
+  devDividerLine: {
+    flex: 1,
+    height: 1,
+    opacity: 0.4,
+  },
+  devLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.2,
+    paddingHorizontal: 4,
+  },
+  devButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  devButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  devButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

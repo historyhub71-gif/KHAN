@@ -2,7 +2,6 @@ import { MaterialIcons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import {
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -74,60 +73,63 @@ export default function StudentNotificationsScreen() {
     }
   };
 
+  const header = (
+    <View style={[styles.headerWrapper, { backgroundColor: colors.background }]}>
+      <View style={styles.header}>
+        <Text style={[styles.title, { color: colors.text }]}>Notifications</Text>
+        <View style={styles.headerActions}>
+          {isSelectionMode ? (
+            <>
+              <TouchableOpacity onPress={toggleSelectAll} style={styles.headerButton}>
+                <Text style={[styles.headerButtonText, { color: colors.primary }]}>
+                  {selectedIds.size === notifications.length && notifications.length > 0 ? 'Deselect All' : 'Select All'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={toggleSelectionMode} style={styles.headerButton}>
+                <Text style={[styles.headerButtonText, { color: colors.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              {unreadCount > 0 && (
+                <TouchableOpacity
+                  onPress={markAllRead}
+                  style={[styles.markAll, { backgroundColor: colors.primary + '15' }]}
+                >
+                  <MaterialIcons name="done-all" size={18} color={colors.primary} />
+                  <Text style={[styles.markAllText, { color: colors.primary }]}>Mark all read</Text>
+                </TouchableOpacity>
+              )}
+              {notifications.length > 0 && (
+                <TouchableOpacity onPress={toggleSelectionMode} style={styles.headerButton}>
+                  <Text style={[styles.headerButtonText, { color: colors.primary }]}>Select</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+        </View>
+      </View>
+      {error ? (
+        <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
+      ) : null}
+    </View>
+  );
+
   return (
     <ScreenContainer>
-      <ScrollView
-        style={[styles.container, { backgroundColor: colors.background }]}
+      <NotificationList
+        notifications={notifications}
+        isLoading={isLoading}
+        onPress={handlePress}
+        isSelectionMode={isSelectionMode}
+        selectedIds={selectedIds}
+        onToggleSelect={toggleSelect}
+        listStyle={{ backgroundColor: colors.background, paddingHorizontal: 16 }}
+        listHeader={header}
         refreshControl={
           <RefreshControl refreshing={isLoading} onRefresh={refresh} />
         }
-      >
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>Notifications</Text>
-          <View style={styles.headerActions}>
-            {isSelectionMode ? (
-              <>
-                <TouchableOpacity onPress={toggleSelectAll} style={styles.headerButton}>
-                  <Text style={[styles.headerButtonText, { color: colors.primary }]}>
-                    {selectedIds.size === notifications.length && notifications.length > 0 ? 'Deselect All' : 'Select All'}
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={toggleSelectionMode} style={styles.headerButton}>
-                  <Text style={[styles.headerButtonText, { color: colors.textSecondary }]}>Cancel</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                {unreadCount > 0 && (
-                  <TouchableOpacity
-                    onPress={markAllRead}
-                    style={[styles.markAll, { backgroundColor: colors.primary + '15' }]}
-                  >
-                    <MaterialIcons name="done-all" size={18} color={colors.primary} />
-                    <Text style={[styles.markAllText, { color: colors.primary }]}>Mark all read</Text>
-                  </TouchableOpacity>
-                )}
-                {notifications.length > 0 && (
-                  <TouchableOpacity onPress={toggleSelectionMode} style={styles.headerButton}>
-                    <Text style={[styles.headerButtonText, { color: colors.primary }]}>Select</Text>
-                  </TouchableOpacity>
-                )}
-              </>
-            )}
-          </View>
-        </View>
-        {error ? (
-          <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
-        ) : null}
-        <NotificationList
-          notifications={notifications}
-          isLoading={isLoading}
-          onPress={handlePress}
-          isSelectionMode={isSelectionMode}
-          selectedIds={selectedIds}
-          onToggleSelect={toggleSelect}
-        />
-      </ScrollView>
+      />
       {isSelectionMode && selectedIds.size > 0 && (
         <View style={[styles.bottomBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
           <Text style={[styles.selectedText, { color: colors.text }]}>
@@ -147,6 +149,10 @@ export default function StudentNotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerWrapper: {
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
   container: {
     flex: 1,
     padding: 16,

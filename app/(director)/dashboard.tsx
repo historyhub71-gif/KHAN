@@ -23,7 +23,6 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
 import { adminService } from '../../services/adminService';
 import { feeService } from '../../services/feeService';
-import { interviewerService } from '../../services/interviewerService';
 import { pdfReportService } from '../../services/pdfReportService';
 import { supabase } from '../../utils/supabase';
 
@@ -45,6 +44,10 @@ interface HomeTabProps {
     totalFeesCollected: number;
     pendingFees: number;
     totalAdmissionRevenue: number;
+    currentMonthCollection: number;
+    overdueAmount: number;
+    unpaidStudentsCount: number;
+    paidStudentsCount: number;
   };
   isLoading: boolean;
   refreshing: boolean;
@@ -86,67 +89,9 @@ function HomeTabScreen({ user, stats, isLoading, refreshing, onRefresh, colors }
         </View>
 
         {/* Section Title */}
-        <Text style={[styles.sectionTitleLabel, { color: colors.textSecondary }]}>Institution Overview</Text>
+        <Text style={[styles.sectionTitleLabel, { color: colors.textSecondary }]}>Financial Overview</Text>
 
-        {/* Stats Grid – Row 1 */}
-        <View style={styles.statsCardGrid}>
-          <View style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.itemIconContainer, { backgroundColor: colors.primary + '15' }]}>
-              <MaterialIcons name="person" size={24} color={colors.primary} />
-            </View>
-            <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.teachers}</Text>
-            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Active Teachers</Text>
-          </View>
-
-          <View style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.itemIconContainer, { backgroundColor: colors.warning + '15' }]}>
-              <MaterialIcons name="school" size={24} color={colors.warning} />
-            </View>
-            <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.students}</Text>
-            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Enrolled Students</Text>
-          </View>
-        </View>
-
-        {/* Stats Grid – Row 2 */}
-        <View style={styles.statsCardGrid}>
-          <View style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.itemIconContainer, { backgroundColor: colors.success + '15' }]}>
-              <MaterialIcons name="class" size={24} color={colors.success} />
-            </View>
-            <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.courses}</Text>
-            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Active Courses</Text>
-          </View>
-
-          <View style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.itemIconContainer, { backgroundColor: colors.secondary + '15' }]}>
-              <MaterialIcons name="check-circle" size={24} color={colors.secondary} />
-            </View>
-            <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.todayAttendance}</Text>
-            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Teachers Present Today</Text>
-          </View>
-        </View>
-
-        {/* Stats Grid – Row 3 */}
-        <View style={styles.statsCardGrid}>
-          <View style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.itemIconContainer, { backgroundColor: colors.primary + '15' }]}>
-              <MaterialIcons name="assignment" size={24} color={colors.primary} />
-            </View>
-            <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.pendingInterviews}</Text>
-            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Pending Interviews</Text>
-          </View>
-
-          <View style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.itemIconContainer, { backgroundColor: colors.warning + '15' }]}>
-              <MaterialIcons name="rate-review" size={24} color={colors.warning} />
-            </View>
-            <Text style={[styles.gridItemVal, { color: colors.text }]}>{stats.pendingReviews}</Text>
-            <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Pending 14-Day Reviews</Text>
-          </View>
-        </View>
-
-        {/* Stats Grid – Row 4: Financials */}
-        <Text style={[styles.sectionTitleLabel, { color: colors.textSecondary, marginTop: 8 }]}>Financial Summary</Text>
+        {/* Stats Grid: Financials */}
         <View style={styles.statsCardGrid}>
           <View style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={[styles.itemIconContainer, { backgroundColor: colors.success + '15' }]}>
@@ -203,20 +148,43 @@ interface ReportsTabProps {
   colors: any;
   refreshing: boolean;
   onRefresh: () => Promise<void>;
+  stats: {
+    totalFeesCollected: number;
+    pendingFees: number;
+    totalAdmissionRevenue: number;
+    currentMonthCollection: number;
+    overdueAmount: number;
+    unpaidStudentsCount: number;
+    paidStudentsCount: number;
+    students: number;
+  };
 }
 
-function ReportsTabScreen({ colors, refreshing, onRefresh }: ReportsTabProps) {
+function ReportsTabScreen({ colors, refreshing, onRefresh, stats }: ReportsTabProps) {
   const [globalStats, setGlobalStats] = useState({ present: 0, absent: 0, total: 0, rate: 0 });
   const [statsLoading, setStatsLoading] = useState(false);
-  const [feeStats, setFeeStats] = useState({ collected: 0, pending: 0, unpaid: 0 });
+  const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
+  const [unpaidStudents, setUnpaidStudents] = useState<any[]>([]);
 
   const fetchReportData = async () => {
     try {
       setStatsLoading(true);
 
-      const [attendanceRes, feesRes] = await Promise.all([
+      const [attendanceRes, recentTxRes, unpaidRes] = await Promise.all([
         supabase.from('attendance').select('status'),
-        supabase.from('fee_payments').select('status, amount').is('deleted_at', null),
+        supabase
+          .from('fee_payments')
+          .select('*, studentProfile:student_id(id, name, email), fee_receipts(receipt_number)')
+          .eq('status', 'approved')
+          .is('deleted_at', null)
+          .order('payment_date', { ascending: false })
+          .limit(5),
+        supabase
+          .from('fee_payments')
+          .select('student_id, amount, due_date, profiles!student_id(id, name, email)')
+          .eq('status', 'unpaid')
+          .is('deleted_at', null)
+          .order('due_date', { ascending: true }),
       ]);
 
       // Attendance
@@ -230,13 +198,41 @@ function ReportsTabScreen({ colors, refreshing, onRefresh }: ReportsTabProps) {
         setGlobalStats({ present: 0, absent: 0, total: 0, rate: 0 });
       }
 
-      // Fees
-      if (feesRes.data) {
-        const collected = feesRes.data
-          .filter((f) => f.status === 'paid')
-          .reduce((acc, f) => acc + Number(f.amount), 0);
-        const unpaid = feesRes.data.filter((f) => f.status === 'unpaid').length;
-        setFeeStats({ collected, pending: 0, unpaid });
+      // Recent transactions (last 5 paid)
+      if (recentTxRes.data) {
+        setRecentTransactions(
+          recentTxRes.data.map((p: any) => ({
+            id: p.id,
+            student_name: p.studentProfile?.name || 'Unknown',
+            student_email: p.studentProfile?.email || '',
+            amount: Number(p.amount),
+            payment_date: p.payment_date,
+            payment_method: p.payment_method || 'Cash',
+            receipt_number: p.fee_receipts?.receipt_number || 'N/A',
+            student_id: p.student_id,
+          }))
+        );
+      }
+
+      // Students with unpaid fees — group by student
+      if (unpaidRes.data) {
+        const studentMap = new Map<string, any>();
+        unpaidRes.data.forEach((p: any) => {
+          const sid = p.student_id;
+          if (!studentMap.has(sid)) {
+            studentMap.set(sid, {
+              id: sid,
+              name: p.profiles?.name || 'Unknown',
+              email: p.profiles?.email || '',
+              total_unpaid: 0,
+              earliest_due: p.due_date,
+            });
+          }
+          const entry = studentMap.get(sid);
+          entry.total_unpaid += Number(p.amount);
+          if (p.due_date < entry.earliest_due) entry.earliest_due = p.due_date;
+        });
+        setUnpaidStudents(Array.from(studentMap.values()));
       }
     } catch (err) {
       console.error(err);
@@ -249,6 +245,8 @@ function ReportsTabScreen({ colors, refreshing, onRefresh }: ReportsTabProps) {
     fetchReportData();
   }, [refreshing]);
 
+  const formatCurrency = (amt: number) => `Rs. ${Number(amt).toLocaleString()}`;
+
   return (
     <ScreenContainer>
       <ScrollView
@@ -260,9 +258,9 @@ function ReportsTabScreen({ colors, refreshing, onRefresh }: ReportsTabProps) {
         }
       >
         <View style={styles.tabHeader}>
-          <Text style={[styles.tabTitle, { color: colors.text }]}>Institution Reports</Text>
+          <Text style={[styles.tabTitle, { color: colors.text }]}>Financial Reports</Text>
           <Text style={[styles.tabSubtitle, { color: colors.textSecondary }]}>
-            Aggregated analytics across attendance and financials
+            Live financial metrics and payment analytics
           </Text>
         </View>
 
@@ -275,8 +273,187 @@ function ReportsTabScreen({ colors, refreshing, onRefresh }: ReportsTabProps) {
           </View>
         ) : (
           <>
-            {/* Attendance Section */}
-            <Text style={[styles.sectionTitleLabel, { color: colors.textSecondary }]}>Student Attendance</Text>
+            {/* ── Financial Summary Grid ── */}
+            <Text style={[styles.sectionTitleLabel, { color: colors.textSecondary }]}>Revenue Summary</Text>
+
+            <View style={[styles.globalRateCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.globalRateLabel, { color: colors.textSecondary }]}>Total Tuition Revenue Collected</Text>
+              <Text style={[styles.globalRateVal, { color: colors.success, fontSize: 30 }]}>
+                {formatCurrency(stats.totalFeesCollected)}
+              </Text>
+            </View>
+
+            <View style={styles.statsCardGrid}>
+              <View style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={[styles.itemIconContainer, { backgroundColor: colors.primary + '15' }]}>
+                  <MaterialIcons name="today" size={20} color={colors.primary} />
+                </View>
+                <Text style={[styles.gridItemVal, { color: colors.primary }]} numberOfLines={1}>
+                  {formatCurrency(stats.currentMonthCollection)}
+                </Text>
+                <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>This Month</Text>
+              </View>
+
+              <View style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={[styles.itemIconContainer, { backgroundColor: colors.secondary + '15' }]}>
+                  <MaterialIcons name="receipt" size={20} color={colors.secondary} />
+                </View>
+                <Text style={[styles.gridItemVal, { color: colors.secondary }]} numberOfLines={1}>
+                  {formatCurrency(stats.totalAdmissionRevenue)}
+                </Text>
+                <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Admission Revenue</Text>
+              </View>
+            </View>
+
+            <View style={styles.statsCardGrid}>
+              <View style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={[styles.itemIconContainer, { backgroundColor: colors.warning + '15' }]}>
+                  <MaterialIcons name="hourglass-empty" size={20} color={colors.warning} />
+                </View>
+                <Text style={[styles.gridItemVal, { color: colors.warning }]} numberOfLines={1}>
+                  {formatCurrency(stats.pendingFees)}
+                </Text>
+                <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Total Outstanding</Text>
+              </View>
+
+              <View style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={[styles.itemIconContainer, { backgroundColor: colors.danger + '15' }]}>
+                  <MaterialIcons name="warning" size={20} color={colors.danger} />
+                </View>
+                <Text style={[styles.gridItemVal, { color: colors.danger }]} numberOfLines={1}>
+                  {formatCurrency(stats.overdueAmount)}
+                </Text>
+                <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Overdue Fees</Text>
+              </View>
+            </View>
+
+            {/* ── Paid vs Unpaid Students ── */}
+            <Text style={[styles.sectionTitleLabel, { color: colors.textSecondary, marginTop: 8 }]}>Student Fee Status</Text>
+            <View style={styles.statsCardGrid}>
+              <View style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={[styles.itemIconContainer, { backgroundColor: colors.success + '15' }]}>
+                  <MaterialIcons name="check-circle" size={20} color={colors.success} />
+                </View>
+                <Text style={[styles.gridItemVal, { color: colors.success }]}>{stats.paidStudentsCount}</Text>
+                <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Paid Up Students</Text>
+              </View>
+
+              <View style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={[styles.itemIconContainer, { backgroundColor: colors.danger + '15' }]}>
+                  <MaterialIcons name="cancel" size={20} color={colors.danger} />
+                </View>
+                <Text style={[styles.gridItemVal, { color: colors.danger }]}>{stats.unpaidStudentsCount}</Text>
+                <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Unpaid Students</Text>
+              </View>
+            </View>
+
+            {/* ── Recent Transactions ── */}
+            <Text style={[styles.sectionTitleLabel, { color: colors.textSecondary, marginTop: 8 }]}>Recent Transactions</Text>
+            {recentTransactions.length === 0 ? (
+              <View style={[styles.statusCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={[styles.statusIconContainer, { backgroundColor: colors.textSecondary + '15' }]}>
+                  <MaterialIcons name="inbox" size={22} color={colors.textSecondary} />
+                </View>
+                <View style={styles.statusTextContainer}>
+                  <Text style={[styles.statusTitle, { color: colors.textSecondary }]}>No Payments Yet</Text>
+                  <Text style={[styles.statusDesc, { color: colors.textSecondary }]}>
+                    Collected payments will appear here.
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <View style={{ gap: 10 }}>
+                {recentTransactions.map((tx) => (
+                  <View
+                    key={tx.id}
+                    style={[styles.txCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                  >
+                    <View style={[styles.txAvatarBg, { backgroundColor: colors.success + '15' }]}>
+                      <Text style={[styles.txAvatarText, { color: colors.success }]}>
+                        {tx.student_name.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.txStudentName, { color: colors.text }]} numberOfLines={1}>
+                        {tx.student_name}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
+                        {tx.receipt_number} • {tx.payment_method}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 1 }}>
+                        {tx.payment_date ? new Date(tx.payment_date).toLocaleDateString() : '—'}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={{ fontSize: 15, fontWeight: '800', color: colors.success }}>
+                        {formatCurrency(tx.amount)}
+                      </Text>
+                      <View style={[styles.paidBadge, { backgroundColor: colors.success + '15' }]}>
+                        <Text style={{ fontSize: 9, fontWeight: '800', color: colors.success }}>PAID</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* ── Students With Unpaid Fees Roster ── */}
+            <Text style={[styles.sectionTitleLabel, { color: colors.textSecondary, marginTop: 20 }]}>Unpaid Fee Roster</Text>
+            {unpaidStudents.length === 0 ? (
+              <View style={[styles.statusCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <View style={[styles.statusIconContainer, { backgroundColor: colors.success + '15' }]}>
+                  <MaterialIcons name="check-circle" size={22} color={colors.success} />
+                </View>
+                <View style={styles.statusTextContainer}>
+                  <Text style={[styles.statusTitle, { color: colors.success }]}>All Fees Paid</Text>
+                  <Text style={[styles.statusDesc, { color: colors.textSecondary }]}>
+                    All active students are up to date with their fees.
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <View style={{ gap: 8 }}>
+                {unpaidStudents.map((stu) => {
+                  const isOverdue = stu.earliest_due && new Date(stu.earliest_due) < new Date();
+                  return (
+                    <View
+                      key={stu.id}
+                      style={[styles.txCard, { backgroundColor: colors.surface, borderColor: isOverdue ? colors.danger + '50' : colors.border }]}
+                    >
+                      <View style={[styles.txAvatarBg, { backgroundColor: (isOverdue ? colors.danger : colors.warning) + '15' }]}>
+                        <Text style={[styles.txAvatarText, { color: isOverdue ? colors.danger : colors.warning }]}>
+                          {stu.name.charAt(0).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.txStudentName, { color: colors.text }]} numberOfLines={1}>
+                          {stu.name}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }} numberOfLines={1}>
+                          {stu.email}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 1 }}>
+                          Due: {stu.earliest_due || '—'}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: isOverdue ? colors.danger : colors.warning }}>
+                          {formatCurrency(stu.total_unpaid)}
+                        </Text>
+                        <View style={[styles.paidBadge, { backgroundColor: (isOverdue ? colors.danger : colors.warning) + '15' }]}>
+                          <Text style={{ fontSize: 9, fontWeight: '800', color: isOverdue ? colors.danger : colors.warning }}>
+                            {isOverdue ? 'OVERDUE' : 'UNPAID'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* ── Attendance Section ── */}
+            <Text style={[styles.sectionTitleLabel, { color: colors.textSecondary, marginTop: 20 }]}>Student Attendance</Text>
             <View style={[styles.globalRateCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Text style={[styles.globalRateLabel, { color: colors.textSecondary }]}>Global Attendance Rate</Text>
               <Text style={[styles.globalRateVal, { color: colors.primary }]}>{globalStats.rate}%</Text>
@@ -319,26 +496,6 @@ function ReportsTabScreen({ colors, refreshing, onRefresh }: ReportsTabProps) {
                 </Text>
               </View>
             </View>
-
-            {/* Financial Section */}
-            <Text style={[styles.sectionTitleLabel, { color: colors.textSecondary, marginTop: 20 }]}>Fee Collections</Text>
-
-            <View style={[styles.globalRateCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[styles.globalRateLabel, { color: colors.textSecondary }]}>Total Tuition Revenue</Text>
-              <Text style={[styles.globalRateVal, { color: colors.success, fontSize: 28 }]}>
-                Rs. {feeStats.collected.toLocaleString()}
-              </Text>
-            </View>
-
-            <View style={styles.statsCardGrid}>
-              <View style={[styles.statsGridItem, { backgroundColor: colors.surface, borderColor: colors.border, flex: 1 }]}>
-                <View style={[styles.itemIconContainer, { backgroundColor: colors.danger + '15' }]}>
-                  <MaterialIcons name="money-off" size={20} color={colors.danger} />
-                </View>
-                <Text style={[styles.gridItemVal, { color: colors.danger }]}>{feeStats.unpaid}</Text>
-                <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>Unpaid Invoices</Text>
-              </View>
-            </View>
           </>
         )}
       </ScrollView>
@@ -357,41 +514,6 @@ interface OverviewTabProps {
 function OverviewTabScreen({ colors, router }: OverviewTabProps) {
   const overviewItems = [
     {
-      title: 'Staff Directory',
-      desc: 'View all approved teachers and ASRs',
-      icon: 'people-outline',
-      route: '/(admin)/teachers',
-      color: colors.primary,
-    },
-    {
-      title: 'Student Roster',
-      desc: 'Browse all enrolled students',
-      icon: 'school',
-      route: '/(admin)/students',
-      color: colors.warning,
-    },
-    {
-      title: 'Course Catalogue',
-      desc: 'View all active courses',
-      icon: 'class',
-      route: '/(admin)/courses',
-      color: colors.success,
-    },
-    {
-      title: 'Course Assignments',
-      desc: 'View teacher and student assignments',
-      icon: 'assignment-ind',
-      route: '/(admin)/course-assignments',
-      color: colors.secondary,
-    },
-    {
-      title: 'Interview Analytics',
-      desc: 'Track admission and progress reviews',
-      icon: 'analytics',
-      route: '/(admin)/interviews',
-      color: colors.success,
-    },
-    {
       title: 'Fee Approvals',
       desc: 'View fee receipts and approvals',
       icon: 'monetization-on',
@@ -404,27 +526,6 @@ function OverviewTabScreen({ colors, router }: OverviewTabProps) {
       icon: 'receipt',
       route: '/(admin)/admission-fees',
       color: colors.danger,
-    },
-    {
-      title: 'Teacher Attendance',
-      desc: 'View check-in and check-out records',
-      icon: 'access-time',
-      route: '/(admin)/teacher-attendance',
-      color: colors.warning,
-    },
-    {
-      title: 'Teacher Salaries',
-      desc: 'View payroll and deduction reports',
-      icon: 'payment',
-      route: '/(admin)/salaries',
-      color: colors.secondary,
-    },
-    {
-      title: 'Academic Reports',
-      desc: 'Generate PDF/HTML status reports',
-      icon: 'print',
-      route: '/(admin)/reports',
-      color: colors.success,
     },
   ];
 
@@ -517,7 +618,7 @@ function ProfileTabScreen({ user, colors, isDark, toggleTheme, handleLogout, rou
           </View>
           <View style={styles.profileRow}>
             <Text style={[styles.profileRowLabel, { color: colors.textSecondary }]}>Access Rights</Text>
-            <Text style={[styles.profileRowVal, { color: colors.text }]}>Read-Only Executive</Text>
+            <Text style={[styles.profileRowVal, { color: colors.text }]}>Financial Executive</Text>
           </View>
         </View>
 
@@ -1112,6 +1213,10 @@ export default function DirectorDashboardScreen() {
     totalFeesCollected: 0,
     pendingFees: 0,
     totalAdmissionRevenue: 0,
+    currentMonthCollection: 0,
+    overdueAmount: 0,
+    unpaidStudentsCount: 0,
+    paidStudentsCount: 0,
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -1121,45 +1226,75 @@ export default function DirectorDashboardScreen() {
     try {
       if (!isRefresh) setIsLoading(true);
 
-      const todayStr = new Date().toISOString().slice(0, 10);
-
       const [
-        teachers,
-        students,
-        courses,
-        attendanceTodayRes,
-        pendingInts,
-        pendingRevs,
         feesApprovedData,
         admissionData,
+        allPayments,
+        allStudents,
       ] = await Promise.all([
-        adminService.getTeachers(),
-        adminService.getStudents(),
-        adminService.getCourses(),
-        supabase.from('teacher_attendance').select('id').eq('date', todayStr).eq('status', 'present'),
-        interviewerService.getNewStudents().catch(() => []),
-        interviewerService.getPendingProgressReviews().catch(() => []),
-        supabase.from('fee_payments').select('amount').eq('status', 'paid').is('deleted_at', null),
+        supabase.from('fee_payments').select('amount').eq('status', 'approved').is('deleted_at', null),
         supabase.from('admission_deals').select('final_fee').eq('payment_status', 'paid'),
+        feeService.getAllFeeRecords(),
+        adminService.getStudents(),
       ]);
 
-      const approvedTeachers = teachers.filter((t) => t.approved === true);
-      const approvedStudents = students.filter((s) => s.approved === true);
-      const presentTeachersCount = attendanceTodayRes.data?.length || 0;
       const totalFeesCollected = feesApprovedData.data?.reduce((acc, f) => acc + Number(f.amount), 0) || 0;
       const totalAdmissionRevenue = admissionData.data?.reduce((acc, d) => acc + Number(d.final_fee), 0) || 0;
 
+      const today = new Date();
+      const currentMonth = today.getMonth();
+      const currentYear = today.getFullYear();
+
+      let currentMonthCollection = 0;
+      let totalOutstanding = 0;
+      let overdueAmount = 0;
+
+      const studentOutstandingMap = new Map<string, number>();
+
+      allPayments.forEach((p: any) => {
+        if (p.status === 'PAID') {
+          if (p.payment_date) {
+            const pDate = new Date(p.payment_date);
+            if (pDate.getMonth() === currentMonth && pDate.getFullYear() === currentYear) {
+              currentMonthCollection += p.amount;
+            }
+          }
+        } else if (p.status === 'UNPAID' || p.status === 'OVERDUE') {
+          totalOutstanding += p.amount;
+          if (p.status === 'OVERDUE') {
+            overdueAmount += p.amount;
+          }
+          studentOutstandingMap.set(p.student_id, (studentOutstandingMap.get(p.student_id) || 0) + p.amount);
+        }
+      });
+
+      let unpaidStudentsCount = 0;
+      let paidStudentsCount = 0;
+
+      allStudents.forEach((stu: any) => {
+        const outstanding = studentOutstandingMap.get(stu.id) || 0;
+        if (outstanding > 0) {
+          unpaidStudentsCount++;
+        } else {
+          paidStudentsCount++;
+        }
+      });
+
       setStats({
-        teachers: approvedTeachers.length,
-        students: approvedStudents.length,
-        courses: courses.length,
+        teachers: 0,
+        students: allStudents.length,
+        courses: 0,
         interviewers: 0,
-        todayAttendance: presentTeachersCount,
-        pendingInterviews: pendingInts.length,
-        pendingReviews: pendingRevs.length,
+        todayAttendance: 0,
+        pendingInterviews: 0,
+        pendingReviews: 0,
         totalFeesCollected,
-        pendingFees: 0,
+        pendingFees: totalOutstanding,
         totalAdmissionRevenue,
+        currentMonthCollection,
+        overdueAmount,
+        unpaidStudentsCount,
+        paidStudentsCount,
       });
     } catch (err) {
       console.error(err);
@@ -1265,6 +1400,7 @@ export default function DirectorDashboardScreen() {
             colors={colors}
             refreshing={refreshing}
             onRefresh={onRefresh}
+            stats={stats}
           />
         )}
       </Tab.Screen>
@@ -1375,7 +1511,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   sectionTitleLabel: {
-    fontSize: 11.5,
+    fontSize: 15.5,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -1383,7 +1519,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   statsCardGrid: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: 12,
     marginBottom: 12,
   },
@@ -1449,11 +1585,11 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   tabTitle: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: '800',
   },
   tabSubtitle: {
-    fontSize: 13,
+    fontSize: 10,
     marginTop: 4,
   },
   globalRateCard: {
@@ -1722,7 +1858,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   successModalCard: {
-    width: '85%',
+    width: '100%',
     maxWidth: 400,
     borderRadius: 24,
     padding: 24,
@@ -1737,7 +1873,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   successTitle: {
-    fontSize: 19,
+    fontSize: 18,
     fontWeight: '800',
     textAlign: 'center',
   },
@@ -1745,7 +1881,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     padding: 16,
-    marginBottom: 20,
+    marginBottom: 10,
     gap: 8,
   },
   receiptSummaryRow: {
@@ -1763,7 +1899,7 @@ const styles = StyleSheet.create({
   },
   receiptActionBtnText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '900',
   },
   successDoneBtn: {
     height: 46,
@@ -1856,4 +1992,39 @@ const styles = StyleSheet.create({
     minHeight: 80,
     textAlignVertical: 'top',
   },
+  txCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+  },
+  txAvatarBg: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  txAvatarText: {
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  txStudentName: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  paidBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginTop: 4,
+  },
 });
+

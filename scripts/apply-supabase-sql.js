@@ -1,5 +1,5 @@
 /**
- * Applies supabase/RUN_ALL_SETUP.sql to your Supabase Postgres database.
+ * Applies supabase/MASTER_SETUP.sql to your Supabase Postgres database.
  *
  * Usage:
  *   node scripts/apply-supabase-sql.js YOUR_DATABASE_PASSWORD
@@ -15,7 +15,7 @@ const path = require('path');
 const { Client } = require('pg');
 
 const PROJECT_REF = 'hevtjydsogadszcwdhhn';
-const SQL_FILE = path.join(__dirname, '..', 'supabase', 'RUN_ALL_SETUP.sql');
+const SQL_FILE = path.join(__dirname, '..', 'supabase', 'MASTER_SETUP.sql');
 
 function loadEnv() {
   const envPath = path.join(__dirname, '..', '.env');
@@ -56,7 +56,7 @@ Get password from:
 
 Option 3 — Manual (no password needed):
   1. Open https://supabase.com/dashboard/project/${PROJECT_REF}/sql/new
-  2. Open file: supabase/RUN_ALL_SETUP.sql
+  2. Open file: supabase/MASTER_SETUP.sql
   3. Copy all → Paste → Run
 `);
     process.exit(1);
@@ -76,7 +76,7 @@ Option 3 — Manual (no password needed):
 
   try {
     await client.connect();
-    console.log('Running RUN_ALL_SETUP.sql ...');
+    console.log('Running MASTER_SETUP.sql ...');
     await client.query(sql);
     console.log('SUCCESS: All SQL applied (tables, RLS, notifications, triggers, realtime).');
     console.log('');

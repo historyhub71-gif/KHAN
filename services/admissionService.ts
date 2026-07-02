@@ -42,12 +42,12 @@ export const admissionService = {
     discountPercentage?: number;
     finalFee: number;
     remarks?: string;
-    createdBy: string;
   }) => {
     const discount = params.discountAmount ?? 0;
     const pct = params.discountPercentage ?? (params.originalFee > 0 ? (discount / params.originalFee) * 100 : 0);
 
-    const { data, error } = await supabase
+    // 1. Create the deal record
+    const { data: deal, error: dealError } = await supabase
       .from('admission_deals')
       .insert({
         student_name: params.studentName,
@@ -63,15 +63,15 @@ export const admissionService = {
         discount_percentage: pct,
         final_fee: params.finalFee,
         remarks: params.remarks || '',
-        admission_status: 'pending',
         payment_status: 'pending',
-        created_by: params.createdBy,
+        admission_status: 'pending',
       })
       .select()
       .single();
 
-    if (error) throw error;
-    return data;
+    if (dealError) throw dealError;
+
+    return deal;
   },
 
   // ── Update an existing deal
@@ -154,7 +154,14 @@ export const admissionService = {
       .from('interviews')
       .select(`
         *,
-        student:student_id(id, name, email),
+        student:student_id(
+          id, 
+          name, 
+          email,
+          admission_deals:admission_deals!student_id (
+            id, course_id, teacher_id, class, section
+          )
+        ),
         interviewer:interviewer_id(id, name),
         recommended_course:recommended_course_id(id, name, code),
         recommended_teacher:recommended_teacher_id(id, name)
@@ -172,6 +179,8 @@ export const admissionService = {
       interviewer_name: i.interviewer?.name,
       recommended_course_name: i.recommended_course?.name,
       recommended_teacher_name: i.recommended_teacher?.name,
+      // Add prioritized deal info for fallback in UI
+      deal: i.student?.admission_deals?.[0] || null,
     }));
   },
 

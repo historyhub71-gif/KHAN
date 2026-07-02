@@ -4,7 +4,10 @@ import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -279,56 +282,65 @@ export default function AdminSalariesScreen() {
 
       {/* Set Salary Modal */}
       <Modal transparent visible={settingModal.visible} animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalCard, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              Salary Config
-            </Text>
-            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
-              {settingModal.teacher?.name}
-            </Text>
-            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Monthly Base Salary (Rs.)</Text>
-            <TextInput
-              style={[styles.modalInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.background }]}
-              placeholder="e.g. 50000"
-              placeholderTextColor={colors.textSecondary}
-              value={salaryInput}
-              onChangeText={setSalaryInput}
-              keyboardType="numeric"
-            />
-            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Working Days Per Month</Text>
-            <TextInput
-              style={[styles.modalInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.background }]}
-              placeholder="e.g. 22"
-              placeholderTextColor={colors.textSecondary}
-              value={workingDaysInput}
-              onChangeText={setWorkingDaysInput}
-              keyboardType="numeric"
-            />
-            <View style={[styles.infoBox, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
-              <MaterialIcons name="info-outline" size={15} color={colors.primary} />
-              <Text style={[styles.infoText, { color: colors.primary }]}>
-                Deductions: 1 absence = 1 day salary. 2 lates = 1 day deduction.
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Salary Config
               </Text>
-            </View>
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.modalBtn, { backgroundColor: colors.border }]}
-                onPress={() => setSettingModal({ visible: false, teacher: null })}
-              >
-                <Text style={[styles.modalBtnText, { color: colors.text }]}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalBtn, { backgroundColor: colors.secondary }]}
-                onPress={handleSetSalary}
-              >
-                <Text style={[styles.modalBtnText, { color: '#fff' }]}>Save</Text>
-              </TouchableOpacity>
+              <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>
+                {settingModal.teacher?.name}
+              </Text>
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Monthly Base Salary (Rs.)</Text>
+              <TextInput
+                style={[styles.modalInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.background }]}
+                placeholder="e.g. 50000"
+                placeholderTextColor={colors.textSecondary}
+                value={salaryInput}
+                onChangeText={setSalaryInput}
+                keyboardType="numeric"
+              />
+              <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Working Days Per Month</Text>
+              <TextInput
+                style={[styles.modalInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.background }]}
+                placeholder="e.g. 22"
+                placeholderTextColor={colors.textSecondary}
+                value={workingDaysInput}
+                onChangeText={setWorkingDaysInput}
+                keyboardType="numeric"
+              />
+              <View style={[styles.infoBox, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
+                <MaterialIcons name="info-outline" size={15} color={colors.primary} />
+                <Text style={[styles.infoText, { color: colors.primary }]}>
+                  Deductions: 1 absence = 1 day salary. 2 lates = 1 day deduction.
+                </Text>
+              </View>
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: colors.border }]}
+                  onPress={() => setSettingModal({ visible: false, teacher: null })}
+                >
+                  <Text style={[styles.modalBtnText, { color: colors.text }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: colors.secondary }]}
+                  onPress={() => {
+                    Keyboard.dismiss();
+                    handleSetSalary();
+                  }}
+                >
+                  <Text style={[styles.modalBtnText, { color: '#fff' }]}>Save</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScreenContainer>
+
   );
 }
 

@@ -27,7 +27,7 @@ export const feeService = {
   getUnpaidStudents: async (): Promise<any[]> => {
     const { data, error } = await supabase
       .from('fee_payments')
-      .select('*, profiles:student_id(id, name, email)')
+      .select('*, profiles!student_id(id, name, email)')
       .eq('status', 'unpaid')
       .is('deleted_at', null)
       .order('due_date', { ascending: true });
@@ -37,8 +37,8 @@ export const feeService = {
     return (data || []).map((p: any) => ({
       payment_id: p.id,
       student_id: p.profiles?.id,
-      student_name: p.profiles?.name,
-      student_email: p.profiles?.email,
+      student_name: p.profiles?.name || 'Unknown Student',
+      student_email: p.profiles?.email || 'N/A',
       amount: p.amount,
       due_date: p.due_date,
       is_overdue: new Date(p.due_date) < new Date(),
@@ -49,7 +49,7 @@ export const feeService = {
   runMonthlyFeeCheck: async (): Promise<{ generated: number }> => {
     const { data: students, error: studentError } = await supabase
       .from('profiles')
-      .select('id, name')
+      .select('id, name, email')
       .eq('role', 'student')
       .eq('approved', true);
 
@@ -62,50 +62,114 @@ export const feeService = {
 
     const startOfMonth = new Date(currentYear, currentMonth, 1);
     const endOfMonth = new Date(currentYear, currentMonth + 1, 0);
+    const startOfMonthStr = startOfMonth.toISOString().slice(0, 10);
+    const endOfMonthStr = endOfMonth.toISOString().slice(0, 10);
+
+    // Fetch all deals to map student fees
+    const { data: deals } = await supabase
+      .from('admission_deals')
+      .select('student_id, student_email, original_fee, final_fee');
+
+    const dealMap = new Map<string, any>();
+    if (deals) {
+      for (const deal of deals) {
+        if (deal.student_id) dealMap.set(deal.student_id, deal);
+        if (deal.student_email) dealMap.set(deal.student_email.toLowerCase().trim(), deal);
+      }
+    }
 
     for (const student of (students || [])) {
-      const { data: existing, error: existError } = await supabase
+      // 1. Check if student already has a payment record for the current month
+      const { data: existingPayment, error: existError } = await supabase
         .from('fee_payments')
         .select('id')
         .eq('student_id', student.id)
-        .gte('due_date', startOfMonth.toISOString().slice(0, 10))
-        .lte('due_date', endOfMonth.toISOString().slice(0, 10))
+        .gte('due_date', startOfMonthStr)
+        .lte('due_date', endOfMonthStr)
         .is('deleted_at', null)
         .maybeSingle();
 
       if (existError) continue;
 
-      if (!existing) {
-        const standardAmount = 15000;
-        const dueDate = new Date(currentYear, currentMonth, 10);
+      // 2. Check if student already has a ledger entry for the current month
+      const { data: existingLedger } = await supabase
+        .from('fee_ledger')
+        .select('id')
+        .eq('student_id', student.id)
+        .gte('payment_date', startOfMonthStr)
+        .lte('payment_date', endOfMonthStr)
+        .maybeSingle();
 
-        const { error: insertError } = await supabase
-          .from('fee_payments')
-          .insert({
-            student_id: student.id,
-            amount: standardAmount,
-            due_date: dueDate.toISOString().slice(0, 10),
-            status: 'unpaid',
-          });
+      // Skip students who already have either a payment or a ledger entry for this month
+      if (existingPayment || existingLedger) continue;
 
-        if (insertError) continue;
+      // 3. Find the student deal to read fees
+      const emailKey = student.email ? student.email.toLowerCase().trim() : '';
+      const studentDeal = dealMap.get(student.id) || (emailKey ? dealMap.get(emailKey) : null);
 
-        await supabase.from('notifications').insert({
-          user_id: student.id,
-          role: 'student',
-          notification_type: 'Monthly Fee Due Reminder',
-          title: 'Monthly Tuition Fee Due',
-          message: `Your tuition fee of Rs. ${standardAmount} for the month is due by ${dueDate.toLocaleDateString()}. Please make a payment.`,
-          read: false,
+      let chargeAmount = 15000;
+      if (studentDeal) {
+        const finalFee = Number(studentDeal.final_fee);
+        const originalFee = Number(studentDeal.original_fee);
+        if (finalFee > 0) {
+          chargeAmount = finalFee;
+        } else if (originalFee > 0) {
+          chargeAmount = originalFee;
+        }
+      }
+
+      const dueDate = new Date(currentYear, currentMonth, 10);
+      const dueDateStr = dueDate.toISOString().slice(0, 10);
+
+      // 4. Generate the monthly fee payment invoice
+      const { error: insertError } = await supabase
+        .from('fee_payments')
+        .insert({
+          student_id: student.id,
+          amount: chargeAmount,
+          due_date: dueDateStr,
+          status: 'unpaid',
         });
 
-        generatedCount++;
+      if (insertError) {
+        console.error(`Failed to insert monthly fee payment for ${student.id}:`, insertError.message);
+        continue;
       }
+
+      // 5. Generate the monthly fee ledger entry
+      const { error: ledgerError } = await supabase
+        .from('fee_ledger')
+        .insert({
+          student_id: student.id,
+          total_fee: chargeAmount,
+          paid_amount: 0,
+          remaining_balance: chargeAmount,
+          remarks: `Monthly tuition fee generated`,
+          payment_date: startOfMonthStr,
+        });
+
+      if (ledgerError) {
+        console.error(`Failed to insert monthly fee ledger for ${student.id}:`, ledgerError.message);
+      }
+
+      // 6. Send Monthly Fee Due Reminder notification
+      await supabase.from('notifications').insert({
+        user_id: student.id,
+        student_id: student.id,
+        role: 'student',
+        notification_type: 'Monthly Fee Due Reminder',
+        title: 'Monthly Fee Due Reminder',
+        message: `Your monthly fee for this month has been generated.\nPayable Amount: Rs. ${chargeAmount}\nDue Date: ${dueDateStr}\nPlease pay before the due date.`,
+        read: false,
+      });
+
+      generatedCount++;
     }
 
+    // Overdue check logic
     const { data: unpaidPayments } = await supabase
       .from('fee_payments')
-      .select('*, profiles:student_id(name)')
+      .select('*, profiles!student_id(name)')
       .eq('status', 'unpaid')
       .is('deleted_at', null);
 
@@ -115,7 +179,7 @@ export const feeService = {
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
         const { count } = await supabase
-          .from('notification_history')
+          .from('notifications')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', payment.student_id)
           .eq('notification_type', 'Fee Overdue Reminder')
@@ -124,6 +188,7 @@ export const feeService = {
         if (count === 0) {
           await supabase.from('notifications').insert({
             user_id: payment.student_id,
+            student_id: payment.student_id,
             role: 'student',
             notification_type: 'Fee Overdue Reminder',
             title: 'OVERDUE: Tuition Fee Alert',
@@ -149,6 +214,7 @@ export const feeService = {
 
     await supabase.from('notifications').insert({
       user_id: studentId,
+      student_id: studentId,
       role: 'student',
       notification_type: 'Fee Overdue Reminder',
       title: 'Manual Fee Reminder Alert',
@@ -173,7 +239,7 @@ export const feeService = {
   // Fetch notification reminder logs
   getReminderHistory: async (studentId?: string): Promise<any[]> => {
     let query = supabase
-      .from('notification_history')
+      .from('notifications')
       .select('*, profiles:user_id(name)')
       .in('notification_type', ['Monthly Fee Due Reminder', 'Fee Overdue Reminder'])
       .order('created_at', { ascending: false });
@@ -216,6 +282,9 @@ export const feeService = {
     paymentStatus: 'pending' | 'paid';
     remarks: string;
     adminId: string;
+    fatherName?: string;
+    phoneNumber?: string;
+    whatsappNumber?: string;
   }): Promise<any> => {
     const { data: deal, error: dealErr } = await supabase
       .from('admission_deals')
@@ -229,6 +298,9 @@ export const feeService = {
         final_fee: params.finalFee,
         payment_status: params.paymentStatus,
         remarks: params.remarks,
+        father_name: params.fatherName || null,
+        phone_number: params.phoneNumber || null,
+        whatsapp_number: params.whatsappNumber || null,
       })
       .select()
       .single();
@@ -270,6 +342,9 @@ export const feeService = {
     paymentStatus: 'pending' | 'paid';
     remarks: string;
     adminId: string;
+    fatherName?: string;
+    phoneNumber?: string;
+    whatsappNumber?: string;
   }): Promise<any> => {
     const { data: currentDeal, error: fetchErr } = await supabase
       .from('admission_deals')
@@ -291,6 +366,9 @@ export const feeService = {
         final_fee: params.finalFee,
         payment_status: params.paymentStatus,
         remarks: params.remarks,
+        father_name: params.fatherName || null,
+        phone_number: params.phoneNumber || null,
+        whatsapp_number: params.whatsappNumber || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
@@ -372,7 +450,7 @@ export const feeService = {
       const { data, error } = await supabase
         .from('fee_payments')
         .update({
-          status: 'paid',
+          status: 'approved',
           amount: params.amount,
           payment_method: params.paymentMethod,
           payment_date: params.paymentDate,
@@ -394,7 +472,7 @@ export const feeService = {
           student_id: params.studentId,
           amount: params.amount,
           due_date: dueDateStr,
-          status: 'paid',
+          status: 'approved',
           payment_method: params.paymentMethod,
           payment_date: params.paymentDate,
           notes: params.notes,
@@ -455,6 +533,7 @@ export const feeService = {
 
     await supabase.from('notifications').insert({
       user_id: params.studentId,
+      student_id: params.studentId,
       role: 'student',
       notification_type: 'payment_approved',
       title: 'Fee Payment Received',
@@ -517,7 +596,7 @@ export const feeService = {
       const remainingBalance = studentUnpaidBalances[p.student_id] || 0;
 
       let statusDisplay: 'PAID' | 'UNPAID' | 'OVERDUE' = 'UNPAID';
-      if (p.status === 'paid') {
+      if (p.status === 'approved') {
         statusDisplay = 'PAID';
       } else if (p.status === 'unpaid') {
         const isOverdue = new Date(p.due_date) < new Date();

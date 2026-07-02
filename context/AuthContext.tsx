@@ -134,21 +134,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         })();
 
         // Race against timeout
-        const result = await Promise.race([authPromise, timeoutPromise]) as AuthUser | 'pending' | 'rejected' | null;
+        const result = await Promise.race([authPromise, timeoutPromise]) as AuthUser | null;
 
         if (isMounted) {
-          if (result === 'pending') {
-            setAuthStatus('pending');
-            setUser(null);
-            await saveCache(null, 'pending');
-          } else if (result === 'rejected') {
-            setAuthStatus('rejected');
-            setUser(null);
-            await saveCache(null, 'rejected');
-          } else if (result) {
+          if (result) {
             setUser(result);
-            setAuthStatus('approved');
-            await saveCache(result, 'approved');
+            if (result.status === 'rejected') {
+              setAuthStatus('rejected');
+              await saveCache(result, 'rejected');
+            } else if (result.status === 'pending' || result.status === 'waiting_approval' || !result.approved) {
+              setAuthStatus('pending');
+              await saveCache(result, 'pending');
+            } else {
+              setAuthStatus('approved');
+              await saveCache(result, 'approved');
+            }
           } else {
             setUser(null);
             setAuthStatus(null);
@@ -208,18 +208,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             try {
               const currentUser = await authService.getCurrentUser(session.user.id);
               if (isMounted) {
-                if (currentUser === 'pending') {
-                  setAuthStatus('pending');
-                  setUser(null);
-                  await saveCache(null, 'pending');
-                } else if (currentUser === 'rejected') {
-                  setAuthStatus('rejected');
-                  setUser(null);
-                  await saveCache(null, 'rejected');
-                } else if (currentUser) {
+                if (currentUser) {
                   setUser(currentUser);
-                  setAuthStatus('approved');
-                  await saveCache(currentUser, 'approved');
+                  if (currentUser.status === 'rejected') {
+                    setAuthStatus('rejected');
+                    await saveCache(currentUser, 'rejected');
+                  } else if (currentUser.status === 'pending' || currentUser.status === 'waiting_approval' || !currentUser.approved) {
+                    setAuthStatus('pending');
+                    await saveCache(currentUser, 'pending');
+                  } else {
+                    setAuthStatus('approved');
+                    await saveCache(currentUser, 'approved');
+                  }
                 } else {
                   setUser(null);
                   setAuthStatus(null);
@@ -253,18 +253,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return;
       }
       const currentUser = await authService.getCurrentUser(session.user.id);
-      if (currentUser === 'pending') {
-        setAuthStatus('pending');
-        setUser(null);
-        await saveCache(null, 'pending');
-      } else if (currentUser === 'rejected') {
-        setAuthStatus('rejected');
-        setUser(null);
-        await saveCache(null, 'rejected');
-      } else if (currentUser) {
+      if (currentUser) {
         setUser(currentUser);
-        setAuthStatus('approved');
-        await saveCache(currentUser, 'approved');
+        if (currentUser.status === 'rejected') {
+          setAuthStatus('rejected');
+          await saveCache(currentUser, 'rejected');
+        } else if (currentUser.status === 'pending' || currentUser.status === 'waiting_approval' || !currentUser.approved) {
+          setAuthStatus('pending');
+          await saveCache(currentUser, 'pending');
+        } else {
+          setAuthStatus('approved');
+          await saveCache(currentUser, 'approved');
+        }
       } else {
         setUser(null);
         setAuthStatus(null);
@@ -296,9 +296,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       console.log('[AuthContext.signUp] authService.signUp completed, result:', newUser);
       
-      setUser(null);
-      setAuthStatus('pending');
-      await saveCache(null, 'pending');
+      setUser(newUser);
+      if (newUser.status === 'rejected') {
+        setAuthStatus('rejected');
+        await saveCache(newUser, 'rejected');
+      } else if (newUser.status === 'pending' || newUser.status === 'waiting_approval' || !newUser.approved) {
+        setAuthStatus('pending');
+        await saveCache(newUser, 'pending');
+      } else {
+        setAuthStatus('approved');
+        await saveCache(newUser, 'approved');
+      }
     } catch (err: any) {
       console.error('[AuthContext.signUp] Error caught:', err);
       const errorMessage = err.message || "Sign up failed";
@@ -320,18 +328,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const authenticatedUser = await authService.signIn(email, password);
       console.log('[AuthContext] signIn successful, user:', authenticatedUser);
       
-      if (authenticatedUser && typeof authenticatedUser !== 'string') {
+      if (authenticatedUser) {
         setUser(authenticatedUser);
-        setAuthStatus('approved');
-        await saveCache(authenticatedUser, 'approved');
-      } else if (authenticatedUser === 'rejected') {
-        setUser(null);
-        setAuthStatus('rejected');
-        await saveCache(null, 'rejected');
+        if (authenticatedUser.status === 'rejected') {
+          setAuthStatus('rejected');
+          await saveCache(authenticatedUser, 'rejected');
+        } else if (authenticatedUser.status === 'pending' || authenticatedUser.status === 'waiting_approval' || !authenticatedUser.approved) {
+          setAuthStatus('pending');
+          await saveCache(authenticatedUser, 'pending');
+        } else {
+          setAuthStatus('approved');
+          await saveCache(authenticatedUser, 'approved');
+        }
       } else {
         setUser(null);
-        setAuthStatus('pending');
-        await saveCache(null, 'pending');
+        setAuthStatus(null);
+        await clearCache();
       }
     } catch (err: any) {
       const errorMessage = err.message || "Sign in failed";

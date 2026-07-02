@@ -58,7 +58,7 @@ export default function AdminInterviewsScreen() {
         admissionService.getFortnightReviews('pending').catch(() => []),
         analyticsService.getAdminInterviewAnalytics().catch(() => null),
         adminService.getTeachers().catch(() => []),
-        supabase.from('courses').select('id, name, code').then(res => res.data || []),
+        supabase.from('courses').select('id, name, code, course_teachers(teacher_id)').then(res => res.data || []),
       ]);
 
       setAwaitingInterviews(interviewsData);
@@ -87,9 +87,21 @@ export default function AdminInterviewsScreen() {
 
   const openApproveModal = (interview: any) => {
     setSelectedInterview(interview);
-    setSelectedTeacherId(interview.recommended_teacher_id || '');
-    setSelectedCourseId(interview.recommended_course_id || '');
-    setClassText('');
+    const deal = interview.deal;
+
+    // Prioritize Deal data, then recommended, then default to empty
+    const courseId = deal?.course_id || interview.recommended_course_id || '';
+    setSelectedCourseId(courseId);
+
+    let teacherId = deal?.teacher_id || interview.recommended_teacher_id || '';
+    if (!teacherId && courseId) {
+      const selectedCourseObj = courses.find((c) => c.id === courseId);
+      teacherId = selectedCourseObj?.course_teachers?.[0]?.teacher_id || '';
+    }
+    setSelectedTeacherId(teacherId);
+
+    const classVal = deal?.class || '';
+    setClassText(classVal);
     setAdminNotes('');
   };
 
@@ -123,9 +135,9 @@ export default function AdminInterviewsScreen() {
         courseId: selectedCourseId,
       });
 
-      Alert.alert('Success', 'Admission approved and student profile configured!');
+      Alert.alert('Success', 'Student has been officially admitted! The assigned teacher has been notified, and the student is now enrolled in the attendance system.');
       closeApproveModal();
-      fetchData();
+      fetchData(true);
     } catch (err: any) {
       Alert.alert('Error', err.message || 'Failed to approve admission');
     } finally {
@@ -349,7 +361,7 @@ export default function AdminInterviewsScreen() {
           <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
               <View>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>Admit Candidate</Text>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>Review & Approve Admission</Text>
                 <Text style={[styles.modalSub, { color: colors.textSecondary }]}>
                   {selectedInterview?.student_name}
                 </Text>
@@ -369,13 +381,20 @@ export default function AdminInterviewsScreen() {
                 <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13, marginTop: 4 }}>
                   Assigned Level: {selectedInterview?.assigned_level} (Total: {selectedInterview?.total_score}/50)
                 </Text>
-                {selectedInterview?.strengths && <Text style={{ color: colors.text, fontSize: 12, marginTop: 6 }}>Strengths: {selectedInterview.strengths}</Text>}
+                
+                <View style={{ marginTop: 12, padding: 10, backgroundColor: colors.background, borderRadius: 8, borderWidth: 1, borderColor: colors.border }}>
+                  <Text style={[styles.fieldLabel, { color: colors.text, fontSize: 12, marginBottom: 4 }]}>ASR Recommendations:</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Course: {selectedInterview?.recommended_course_name || 'Not specified'}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Teacher: {selectedInterview?.recommended_teacher_name || 'Not specified'}</Text>
+                </View>
+
+                {selectedInterview?.strengths && <Text style={{ color: colors.text, fontSize: 12, marginTop: 10 }}>Strengths: {selectedInterview.strengths}</Text>}
                 {selectedInterview?.weaknesses && <Text style={{ color: colors.text, fontSize: 12, marginTop: 2 }}>Weaknesses: {selectedInterview.weaknesses}</Text>}
-                {selectedInterview?.recommendations && <Text style={{ color: colors.text, fontSize: 12, marginTop: 2 }}>ASR recommendations: {selectedInterview.recommendations}</Text>}
+                {selectedInterview?.recommendations && <Text style={{ color: colors.text, fontSize: 12, marginTop: 2 }}>ASR notes: {selectedInterview.recommendations}</Text>}
               </View>
 
-              {/* Input Form */}
-              <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 16 }]}>Assign Course</Text>
+              {/* Admin Confirmation of ASR recommendations */}
+              <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 16 }]}>Confirm/Adjust Assigned Course</Text>
               <View style={[styles.pickerContainer, { borderColor: colors.border }]}>
                 {courses.map((c) => (
                   <TouchableOpacity
@@ -385,15 +404,26 @@ export default function AdminInterviewsScreen() {
                       { borderColor: colors.border },
                       selectedCourseId === c.id && { backgroundColor: colors.primary + '15', borderColor: colors.primary },
                     ]}
-                    onPress={() => setSelectedCourseId(c.id)}
+                    onPress={() => {
+                      setSelectedCourseId(c.id);
+                      const officialTeacherId = c.course_teachers?.[0]?.teacher_id;
+                      if (officialTeacherId) {
+                        setSelectedTeacherId(officialTeacherId);
+                      }
+                    }}
                   >
                     <View style={[styles.pickerDot, { backgroundColor: selectedCourseId === c.id ? colors.primary : colors.border }]} />
                     <Text style={[styles.pickerName, { color: colors.text }]}>{c.name} ({c.code})</Text>
+                    {selectedInterview?.recommended_course_id === c.id && (
+                      <View style={{ marginLeft: 'auto', backgroundColor: colors.success + '20', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 9, color: colors.success, fontWeight: '700' }}>ASR PICK</Text>
+                      </View>
+                    )}
                   </TouchableOpacity>
                 ))}
               </View>
 
-              <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 16 }]}>Assign Teacher</Text>
+              <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 16 }]}>Confirm/Adjust Assigned Teacher</Text>
               <View style={[styles.pickerContainer, { borderColor: colors.border }]}>
                 {teachers.map((t) => (
                   <TouchableOpacity
@@ -407,11 +437,16 @@ export default function AdminInterviewsScreen() {
                   >
                     <View style={[styles.pickerDot, { backgroundColor: selectedTeacherId === t.id ? colors.primary : colors.border }]} />
                     <Text style={[styles.pickerName, { color: colors.text }]}>{t.name}</Text>
+                    {selectedInterview?.recommended_teacher_id === t.id && (
+                      <View style={{ marginLeft: 'auto', backgroundColor: colors.success + '20', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                        <Text style={{ fontSize: 9, color: colors.success, fontWeight: '700' }}>ASR PICK</Text>
+                      </View>
+                    )}
                   </TouchableOpacity>
                 ))}
               </View>
 
-              <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 16 }]}>Class Name</Text>
+              <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 16 }]}>Class Name (Final)</Text>
               <TextInput
                 style={[styles.textInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
                 placeholder="e.g. Class 10-A"
@@ -420,10 +455,10 @@ export default function AdminInterviewsScreen() {
                 onChangeText={setClassText}
               />
 
-              <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 16 }]}>Admin Decisions/Notes</Text>
+              <Text style={[styles.fieldLabel, { color: colors.textSecondary, marginTop: 16 }]}>Admin Decision Notes</Text>
               <TextInput
                 style={[styles.textInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text, height: 60, textAlignVertical: 'top' }]}
-                placeholder="Notes for admission approval or rejection..."
+                placeholder="Final notes for admission approval or rejection..."
                 placeholderTextColor={colors.textSecondary}
                 multiline
                 value={adminNotes}
@@ -437,7 +472,7 @@ export default function AdminInterviewsScreen() {
                   onPress={handleApprove}
                   disabled={actionLoading}
                 >
-                  {actionLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.actionBtnText}>Approve Admission</Text>}
+                  {actionLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.actionBtnText}>Approve Assessment</Text>}
                 </TouchableOpacity>
 
                 <TouchableOpacity

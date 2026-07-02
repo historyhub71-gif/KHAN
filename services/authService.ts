@@ -1,8 +1,12 @@
+import * as Linking from 'expo-linking';
+import { Platform } from 'react-native';
 import { PASSWORD_RESET_REDIRECT } from "../constants/deepLinking";
 import { AuthUser } from "../types";
 import { supabase } from "../utils/supabase";
-import * as Linking from 'expo-linking';
-import { Platform } from 'react-native';
+import {
+  ADMISSION_SIGNUP_ERROR,
+  admissionValidationService,
+} from "./admissionValidationService";
 
 export const authService = {
   signUp: async (
@@ -12,73 +16,108 @@ export const authService = {
     role: 'teacher' | 'student' | 'interviewer'
   ) => {
     try {
-      console.log('[authService.signUp] Starting signup for email:', email);
+      const normalizedEmail = email.trim().toLowerCase();
+      console.log('[authService.signUp] Starting signup for email:', normalizedEmail);
 
       let userId: string;
-      let userEmail = email;
+      let userEmail = normalizedEmail;
 
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-            role,
-          }
+      if (role === 'student') {
+        await admissionValidationService.validateStudentSignupEligibility(normalizedEmail);
+
+        console.log('[authService.signUp] Student eligible. Running complete_approved_student_signup RPC...');
+        const { error: activationError } = await supabase.rpc('complete_approved_student_signup', {
+          p_email: normalizedEmail,
+          p_password: password,
+          p_name: name,
+        });
+
+        if (activationError) {
+          console.error('[authService.signUp] approved student activation error:', activationError);
+          throw new Error(activationError.message || ADMISSION_SIGNUP_ERROR);
         }
-      });
 
-      if (authError) {
-        if (authError.message.includes('User already registered')) {
-          console.log('[authService.signUp] User already registered. Attempting sign-in instead.');
+        console.log('[authService.signUp] RPC successful. Attempting sign-in...');
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
 
-          const { data: signInData, error: signInError } =
-            await supabase.auth.signInWithPassword({
-              email,
-              password,
-            });
-
-          if (signInError) {
-            console.error('[authService.signUp] signIn error for existing user:', signInError);
-            throw signInError;
-          }
-
-          if (!signInData.user) {
-            throw new Error('User sign-in failed after registration check');
-          }
-
-          userId = signInData.user.id;
-          userEmail = signInData.user.email || email;
-        } else {
-          console.error('[authService.signUp] signUp error:', authError);
-          throw authError;
+        if (signInError) {
+          console.error('[authService.signUp] signIn error for activated student:', signInError);
+          throw signInError;
         }
+
+        if (!signInData.user) {
+          throw new Error('User sign-in failed after activation');
+        }
+
+        userId = signInData.user.id;
+        userEmail = signInData.user.email || normalizedEmail;
       } else {
-        if (!authData.user) {
-          throw new Error('User creation failed');
-        }
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: normalizedEmail,
+          password,
+          options: {
+            data: {
+              name,
+              role,
+            }
+          }
+        });
 
-        userId = authData.user.id;
-        userEmail = authData.user.email || email;
+        if (authError) {
+          if (authError.message?.toLowerCase().includes('already registered')) {
+            console.log('[authService.signUp] User already registered. Attempting sign-in instead.');
 
-        if (!authData.session) {
-          console.log('[authService.signUp] No session from signup, attempting signin');
+            const { data: signInData, error: signInError } =
+              await supabase.auth.signInWithPassword({
+                email: normalizedEmail,
+                password,
+              });
 
-          const { data: signInData, error: signInError } =
-            await supabase.auth.signInWithPassword({
-              email,
-              password,
-            });
+            if (signInError) {
+              console.error('[authService.signUp] signIn error for existing user:', signInError);
+              throw signInError;
+            }
 
-          if (signInError) {
-            console.error('[authService.signUp] signIn error:', signInError);
-            throw signInError;
+            if (!signInData.user) {
+              throw new Error('User sign-in failed after registration check');
+            }
+
+            userId = signInData.user.id;
+            userEmail = signInData.user.email || email;
+          } else {
+            console.error('[authService.signUp] signUp error:', authError);
+            throw authError;
+          }
+        } else {
+          if (!authData.user) {
+            throw new Error('User creation failed');
           }
 
-          console.log('[authService.signUp] SignIn successful');
+          userId = authData.user.id;
+          userEmail = authData.user.email || email;
 
-          userId = signInData.user?.id || userId;
-          userEmail = signInData.user?.email || userEmail;
+          if (!authData.session) {
+            console.log('[authService.signUp] No session from signup, attempting signin');
+
+            const { data: signInData, error: signInError } =
+              await supabase.auth.signInWithPassword({
+                email: normalizedEmail,
+                password,
+              });
+
+            if (signInError) {
+              console.error('[authService.signUp] signIn error:', signInError);
+              throw signInError;
+            }
+
+            console.log('[authService.signUp] SignIn successful');
+
+            userId = signInData.user?.id || userId;
+            userEmail = signInData.user?.email || userEmail;
+          }
         }
       }
 
@@ -94,7 +133,7 @@ export const authService = {
       }
 
       console.log('[authService.signUp] Inserting profile for userId:', userId);
-
+      /*
       const { error: profileError } = await supabase
         .from('profiles')
         .insert({
@@ -104,7 +143,7 @@ export const authService = {
           role,
           approved: false,
           status: 'pending',
-        });
+        });S
 
       if (profileError) {
         if (
@@ -118,16 +157,27 @@ export const authService = {
           throw profileError;
         }
       }
-
+     */
       console.log('[authService.signUp] Profile handled successfully');
+
+      // Read the actual profile to get the status set by handle_new_user trigger
+      // (it may have set waiting_approval if admission_deals email matched)
+      const { data: finalProfile } = await supabase
+        .from('profiles')
+        .select('id, email, name, role, approved, status, created_at')
+        .eq('id', userId)
+        .single();
+
+      const returnStatus = finalProfile?.status || (role === 'student' ? 'approved' : 'pending');
 
       return {
         id: userId,
         email: userEmail,
-        name,
-        role,
-        approved: false,
-        status: 'pending'
+        name: finalProfile?.name || name,
+        role: (finalProfile?.role || role) as 'teacher' | 'student' | 'interviewer',
+        approved: finalProfile?.approved ?? false,
+        status: returnStatus,
+        created_at: finalProfile?.created_at || new Date().toISOString(),
       };
     } catch (error) {
       console.error('[authService.signUp] Caught error:', error);
@@ -138,7 +188,7 @@ export const authService = {
   signIn: async (
     email: string,
     password: string
-  ): Promise<AuthUser | 'pending' | 'rejected' | null> => {
+  ): Promise<AuthUser | null> => {
     try {
       console.log('[authService] Starting sign-in for email:', email);
 
@@ -167,9 +217,6 @@ export const authService = {
 
       console.log('[authService] Profile fetched successfully:', profileData);
 
-      if (profileData.status === 'rejected') return 'rejected';
-      if (profileData.status === 'pending' || !profileData.approved) return 'pending';
-
       return profileData as AuthUser;
     } catch (error) {
       console.error('[authService] Sign-in failed:', error);
@@ -185,7 +232,7 @@ export const authService = {
 
   getCurrentUser: async (
     passedUserId?: string
-  ): Promise<AuthUser | 'pending' | 'rejected' | null> => {
+  ): Promise<AuthUser | null> => {
     try {
       console.log('[authService] getCurrentUser starting...');
 
@@ -222,9 +269,6 @@ export const authService = {
         console.error('[authService] Profile fetch error:', error);
         return null;
       }
-
-      if (profileData.status === 'rejected') return 'rejected';
-      if (profileData.status === 'pending' || !profileData.approved) return 'pending';
 
       return profileData as AuthUser;
     } catch (error) {

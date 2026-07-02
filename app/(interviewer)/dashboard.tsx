@@ -4,7 +4,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Modal,
   RefreshControl,
@@ -14,15 +13,15 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
-import { ScreenContainer } from '../../component/common/ScreenContainer';
 import { Button } from '../../component/common/Button';
+import { ScreenContainer } from '../../component/common/ScreenContainer';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
-import { interviewerService } from '../../services/interviewerService';
 import { admissionService } from '../../services/admissionService';
-import { Profile, Interview, StudentProgressReview } from '../../types';
+import { interviewerService } from '../../services/interviewerService';
+import { Interview, Profile, StudentProgressReview } from '../../types';
 import { supabase } from '../../utils/supabase';
 
 const Tab = createBottomTabNavigator();
@@ -79,7 +78,7 @@ function HomeTabScreen({
             <View style={styles.headerTextContainer}>
               <Text style={[styles.greeting, { color: colors.textSecondary }]}>Welcome back,</Text>
               <Text style={[styles.userName, { color: colors.text }]} numberOfLines={1}>
-                {user?.name}
+                {user?.name || 'Interviewer'}
               </Text>
             </View>
           </View>
@@ -97,7 +96,7 @@ function HomeTabScreen({
             <View style={[styles.itemIconContainer, { backgroundColor: colors.primary + '15' }]}>
               <Ionicons name="person-add" size={22} color={colors.primary} />
             </View>
-            <Text style={[styles.gridItemVal, { color: colors.text }]}>{newStudents.length}</Text>
+            <Text style={[styles.gridItemVal, { color: colors.text }]}>{newStudents?.length || 0}</Text>
             <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>New Admissions</Text>
           </View>
 
@@ -105,7 +104,7 @@ function HomeTabScreen({
             <View style={[styles.itemIconContainer, { backgroundColor: colors.warning + '15' }]}>
               <Ionicons name="time" size={22} color={colors.warning} />
             </View>
-            <Text style={[styles.gridItemVal, { color: colors.text }]}>{pendingReviews.length}</Text>
+            <Text style={[styles.gridItemVal, { color: colors.text }]}>{pendingReviews?.length || 0}</Text>
             <Text style={[styles.gridItemLabel, { color: colors.textSecondary }]}>14-Day Reviews</Text>
           </View>
         </View>
@@ -118,7 +117,7 @@ function HomeTabScreen({
           </Text>
         </View>
 
-        {newStudents.length === 0 ? (
+        {!newStudents || newStudents.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Ionicons name="people-outline" size={40} color={colors.textSecondary} />
             <Text style={[styles.emptyCardText, { color: colors.textSecondary }]}>
@@ -135,12 +134,18 @@ function HomeTabScreen({
                 <View style={styles.cardMain}>
                   <View style={[styles.initialCircle, { backgroundColor: colors.secondary + '15' }]}>
                     <Text style={[styles.initialText, { color: colors.secondary }]}>
-                      {student.name.charAt(0).toUpperCase()}
+                      {student?.name ? student.name.charAt(0).toUpperCase() : '?'}
                     </Text>
                   </View>
                   <View style={styles.cardDetails}>
-                    <Text style={[styles.studentName, { color: colors.text }]}>{student.name}</Text>
-                    <Text style={[styles.studentEmail, { color: colors.textSecondary }]}>{student.email}</Text>
+                    <Text style={[styles.studentName, { color: colors.text }]}>{student?.name || 'Unknown Student'}</Text>
+                    <Text style={[styles.studentEmail, { color: colors.textSecondary }]}>{student?.email || 'N/A'}</Text>
+                    <Text style={{ fontSize: 11.5, color: colors.primary, marginTop: 4, fontWeight: '600' }}>
+                      Course: {(student as any).course_name || 'N/A'}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>
+                      Status: {(student as any).interview_status || 'Pending'} | Date: {(student as any).created_at ? new Date((student as any).created_at).toLocaleDateString() : 'N/A'}
+                    </Text>
                   </View>
                 </View>
                 <TouchableOpacity
@@ -163,7 +168,7 @@ function HomeTabScreen({
           </Text>
         </View>
 
-        {pendingReviews.length === 0 ? (
+        {!pendingReviews || pendingReviews.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Ionicons name="calendar-outline" size={40} color={colors.textSecondary} />
             <Text style={[styles.emptyCardText, { color: colors.textSecondary }]}>
@@ -184,9 +189,9 @@ function HomeTabScreen({
                     </Text>
                   </View>
                   <View style={styles.cardDetails}>
-                    <Text style={[styles.studentName, { color: colors.text }]}>{review.student_name}</Text>
+                    <Text style={[styles.studentName, { color: colors.text }]}>{review.student_name || 'Unknown Student'}</Text>
                     <Text style={[styles.studentEmail, { color: colors.textSecondary }]}>
-                      Due: {new Date(review.scheduled_date).toLocaleDateString()}
+                      Due: {review.scheduled_date ? new Date(review.scheduled_date).toLocaleDateString() : 'N/A'}
                     </Text>
                   </View>
                 </View>
@@ -290,7 +295,7 @@ function HistoryTabScreen({
                 <Text style={[styles.historyStudentName, { color: colors.text }]}>
                   {item.student_name || 'Student'}
                 </Text>
-                
+
                 <View style={styles.historyScoresSummary}>
                   <Text style={[styles.scoreSummaryText, { color: colors.textSecondary }]}>
                     Total Score: <Text style={{ color: colors.text, fontWeight: '700' }}>{item.total_score}/50</Text>
@@ -484,28 +489,43 @@ export default function InterviewerDashboardScreen() {
         interviewerService.getNewStudents(),
         interviewerService.getPendingProgressReviews(),
       ]);
-      setNewStudents(newStuds);
-      setPendingReviews(reviews);
+      setNewStudents(Array.isArray(newStuds) ? newStuds : []);
+      setPendingReviews(Array.isArray(reviews) ? reviews : []);
+
+      console.log("Interviewer dashboard stats:", {
+        newStudentsCount: Array.isArray(newStuds) ? newStuds.length : 0,
+        pendingReviewsCount: Array.isArray(reviews) ? reviews.length : 0
+      });
 
       // Fetch history for the interviewer
       if (user?.id) {
         const { data, error } = await supabase
           .from('interviews')
-          .select('*, profiles:student_id(name)')
+          .select('*, profiles!student_id(name)')
           .is('deleted_at', null)
           .order('created_at', { ascending: false });
 
-        if (!error && data) {
+        if (error) {
+          console.warn('Error fetching interview history:', error.message);
+        } else if (data) {
           setInterviewsHistory(
             data.map((row: any) => ({
               ...row,
-              student_name: row.profiles?.name,
+              student_name: row.profiles?.name || row.student_name || 'Unknown Student',
             }))
           );
         }
       }
-    } catch (err) {
-      console.error('Failed to fetch interviewer dashboard data:', err);
+    } catch (err: any) {
+      // Enhanced logging to avoid "NamelessError" and provide better diagnostics
+      const errorPayload = {
+        message: err?.message || 'Unknown error',
+        details: err?.details || 'No details',
+        hint: err?.hint || 'No hint',
+        code: err?.code || 'No code',
+        stack: err?.stack || 'No stack'
+      };
+      console.error('Failed to fetch interviewer dashboard data:', JSON.stringify(errorPayload, null, 2));
     } finally {
       setIsLoading(false);
     }
@@ -560,16 +580,53 @@ export default function InterviewerDashboardScreen() {
 
   const handleSubmitInterview = async () => {
     if (!selectedStudent || !user?.id) return;
+
+    // Validation for Course and Teacher assignment
+    if (!recommendedCourseId) {
+      Alert.alert('Validation Error', 'Please assign a recommended Course before submitting.');
+      return;
+    }
+    if (!recommendedTeacherId) {
+      Alert.alert('Validation Error', 'Please assign a recommended Teacher before submitting.');
+      return;
+    }
+
     try {
       setSubmitting(true);
-      
+
+      let studentId = selectedStudent.id;
+
+      // If this is a placeholder from an orphan deal, we must resolve/create the student profile first
+      if ((selectedStudent as any).is_placeholder) {
+        console.log("[dashboard] Resolving placeholder student for assessment...");
+        const { data: newId, error: rpcErr } = await supabase.rpc('create_student_from_admission', {
+          p_email: selectedStudent.email,
+          p_name: selectedStudent.name,
+          p_father_name: (selectedStudent as any).father_name || '',
+          p_phone: (selectedStudent as any).phone_number || '',
+          p_whatsapp: (selectedStudent as any).whatsapp_number || '',
+          p_course_id: (selectedStudent as any).course_id || null,
+          p_class: (selectedStudent as any).class || '',
+          p_teacher_id: (selectedStudent as any).teacher_id || null,
+          p_deal_id: selectedStudent.id, // The placeholder ID is the deal ID
+        });
+
+        if (rpcErr) {
+          throw new Error('Failed to create student profile for this assessment: ' + rpcErr.message);
+        }
+        if (newId) {
+          studentId = newId;
+          console.log("[dashboard] Placeholder resolved to student_id:", studentId);
+        }
+      }
+
       const totalScore = english + communication + confidence + technical + learning;
       let assignedLevel: 'Beginner' | 'Intermediate' | 'Advanced' = 'Beginner';
       if (totalScore >= 40) assignedLevel = 'Advanced';
       else if (totalScore >= 25) assignedLevel = 'Intermediate';
 
       await admissionService.submitInterviewForReview({
-        studentId: selectedStudent.id,
+        studentId: studentId,
         interviewerId: user.id,
         english,
         communication,
@@ -577,7 +634,7 @@ export default function InterviewerDashboardScreen() {
         technicalSkills: technical,
         learningAbility: learning,
         assignedLevel,
-        notes: `Admission Interview completed. Scores: Eng ${english}, Comm ${communication}, Conf ${confidence}, Tech ${technical}, Learn ${learning}.`,
+        notes: `Admission Interview & Academic Placement completed. Scores: Eng ${english}, Comm ${communication}, Conf ${confidence}, Tech ${technical}, Learn ${learning}.`,
         strengths: strengths.trim(),
         weaknesses: weaknesses.trim(),
         recommendations: recommendations.trim(),
@@ -585,10 +642,11 @@ export default function InterviewerDashboardScreen() {
         recommendedTeacherId: recommendedTeacherId || null,
       });
 
-      Alert.alert('Success', 'Admission interview submitted successfully!');
+      Alert.alert('Success', 'Admission assessment and academic placement submitted successfully!');
       resetForm();
       fetchData();
     } catch (err: any) {
+      console.error("[dashboard] Error in handleSubmitInterview:", err);
       Alert.alert('Error', err.message || 'Failed to submit interview');
     } finally {
       setSubmitting(false);
@@ -909,8 +967,8 @@ export default function InterviewerDashboardScreen() {
                 onChangeText={setRecommendations}
               />
 
-              {/* Recommended Course Selection */}
-              <Text style={[styles.inputLabel, { color: colors.text, marginTop: 8 }]}>Recommended Course</Text>
+              {/* Assigned Course Selection */}
+              <Text style={[styles.inputLabel, { color: colors.text, marginTop: 8 }]}>Assigned Course</Text>
               <View style={[styles.teacherPickerContainer, { borderColor: colors.border, marginTop: 4 }]}>
                 {courses.length === 0 ? (
                   <Text style={{ color: colors.textSecondary, padding: 12 }}>No courses available.</Text>
@@ -932,8 +990,8 @@ export default function InterviewerDashboardScreen() {
                 )}
               </View>
 
-              {/* Recommended Teacher Selection */}
-              <Text style={[styles.inputLabel, { color: colors.text, marginTop: 8 }]}>Recommended Teacher</Text>
+              {/* Assigned Teacher Selection */}
+              <Text style={[styles.inputLabel, { color: colors.text, marginTop: 8 }]}>Assigned Class/Teacher</Text>
               <View style={[styles.teacherPickerContainer, { borderColor: colors.border, marginTop: 4 }]}>
                 {teachers.length === 0 ? (
                   <Text style={{ color: colors.textSecondary, padding: 12 }}>No teachers available.</Text>
@@ -1118,8 +1176,8 @@ export default function InterviewerDashboardScreen() {
                       styles.calcValue,
                       { color: calculatedTotal - prevInterview.total_score >= 0 ? colors.success : colors.danger }
                     ]}>
-                      {prevInterview.total_score > 0 
-                        ? Math.round(((calculatedTotal - prevInterview.total_score) / prevInterview.total_score) * 100) 
+                      {prevInterview.total_score > 0
+                        ? Math.round(((calculatedTotal - prevInterview.total_score) / prevInterview.total_score) * 100)
                         : 0}%
                     </Text>
                   </View>
@@ -1369,7 +1427,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   statsCardGrid: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: 12,
     marginBottom: 24,
   },
@@ -1408,7 +1466,7 @@ const styles = StyleSheet.create({
     paddingLeft: 4,
   },
   sectionTitleHeader: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: '800',
   },
   sectionSubtitle: {
@@ -1433,7 +1491,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   itemCard: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 14,
@@ -1466,7 +1524,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   studentName: {
-    fontSize: 14,
+    fontSize: 22,
     fontWeight: '700',
   },
   studentEmail: {
@@ -1476,13 +1534,14 @@ const styles = StyleSheet.create({
   conductButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
+    paddingHorizontal: 5,
+    paddingVertical: 6,
+    borderRadius: 17,
     elevation: 2,
   },
   conductButtonText: {
-    fontSize: 12,
+    fontSize: 14,
+    paddingTop: 5,
     fontWeight: '700',
   },
   tabHeader: {

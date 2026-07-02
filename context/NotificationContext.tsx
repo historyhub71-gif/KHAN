@@ -6,14 +6,13 @@ import React, {
   useMemo,
   useRef,
 } from 'react';
+import { useAuth } from '../hooks/useAuth';
 import { useNotifications } from '../hooks/useNotifications';
 import { Notification } from '../types';
 import {
   registerForPushNotificationsAsync,
   scheduleLocalNotification,
 } from '../utils/pushNotifications';
-import { supabase } from '../utils/supabase';
-import { useAuth } from '../hooks/useAuth';
 
 interface NotificationContextValue {
   notifications: Notification[];
@@ -35,17 +34,17 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const { user } = useAuth();
   const isStudent = user?.role === 'student' && user?.approved;
-  const studentId = isStudent ? user.id : undefined;
+  const userId = user?.approved ? user.id : undefined;
 
   const pushReadyRef = useRef(false);
   const seenIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!isStudent) return;
+    if (!isStudent || !userId) return;
     registerForPushNotificationsAsync().then((ok) => {
       pushReadyRef.current = ok;
     });
-  }, [isStudent, studentId]);
+  }, [isStudent, userId]);
 
   const handleNewNotification = useCallback(
     async (n: Notification) => {
@@ -68,7 +67,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
     markRead,
     markAllRead,
     deleteNotifications,
-  } = useNotifications(studentId, handleNewNotification);
+  } = useNotifications(userId, handleNewNotification);
 
   useEffect(() => {
     if (notifications.length > 0) {

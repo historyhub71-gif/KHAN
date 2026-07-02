@@ -31,10 +31,28 @@ export const adminService = {
     if (error) throw error;
   },
 
-  approveTeacher: async (id: string) => {
+  approveTeacher: async (id: string, officialCheckInTime: string) => {
     const { data, error } = await supabase
       .from('profiles')
-      .update({ approved: true, status: 'approved' })
+      .update({
+        approved: true,
+        status: 'approved',
+        official_check_in_time: officialCheckInTime,
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  updateTeacherCheckInTime: async (id: string, officialCheckInTime: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        official_check_in_time: officialCheckInTime,
+      })
       .eq('id', id)
       .select()
       .single();
@@ -80,6 +98,11 @@ export const adminService = {
   },
 
   deleteStudent: async (id: string) => {
+    // The delete_user_by_id RPC performs a complete cascading cleanup:
+    // notifications, attendance, fortnight_reviews, student_progress_reports,
+    // interviews, course_students, student_enrollments, fee_ledger, fee_payments
+    // (→ fee_receipts), student_profiles, and finally profiles + auth.users.
+    // It also nullifies student_id on admission_deals to preserve financial records.
     const { error } = await supabase.rpc('delete_user_by_id', { p_user_id: id });
     if (error) throw error;
   },
@@ -108,58 +131,18 @@ export const adminService = {
     return data;
   },
 
-  // Formal admission approval: assign class, section, teacher to a student
-  admitStudent: async (params: {
-    studentId: string;
-    assignedTeacherId: string;
-    class: string;
-    section: string;
-  }): Promise<StudentProfile> => {
-    const { data, error } = await supabase
-      .from('student_profiles')
-      .upsert({
-        id: params.studentId,
-        assigned_teacher_id: params.assignedTeacherId,
-        class: params.class,
-        section: params.section,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    // Also send a notification to the student
-    await supabase.from('notifications').insert({
-      user_id: params.studentId,
-      role: 'student',
-      notification_type: 'admission_approved',
-      title: 'Admission Confirmed',
-      message: `Congratulations! Your admission has been officially confirmed. Class: ${params.class}, Section: ${params.section}.`,
-      read: false,
-    });
-
-    // Notify the assigned teacher
-    await supabase.from('notifications').insert({
-      user_id: params.assignedTeacherId,
-      role: 'teacher',
-      notification_type: 'new_student_assigned',
-      title: 'New Student Assigned',
-      message: `A new student has been assigned to you in Class ${params.class}, Section ${params.section}.`,
-      read: false,
-    });
-
-    return data as StudentProfile;
-  },
-
   // Get student profile (class, section, assigned teacher, level)
   getStudentProfile: async (studentId: string): Promise<StudentProfile | null> => {
     const { data, error } = await supabase
       .from('student_profiles')
-      .select('*, teacher:assigned_teacher_id(name)')
+      .select('*, teacher:profiles!fk_assigned_teacher(name)')
       .eq('id', studentId)
       .maybeSingle();
 
-    if (error) throw error;
+    if (error) {
+      console.error("Error in getStudentProfile:", error);
+      throw error;
+    }
     if (!data) return null;
 
     return {
@@ -169,7 +152,7 @@ export const adminService = {
   },
 
   // Fetch all students with their profiles (for admission management)
-  getStudentsWithProfiles: async (): Promise<(Profile & { studentProfile?: StudentProfile })[]> => {
+  getStudentsWithProfiles: async (): Promise<(Profile & { studentProfile?: StudentProfile, pendingInterviewId?: string })[]> => {
     const { data: profiles, error: profError } = await supabase
       .from('profiles')
       .select('*')
@@ -177,23 +160,50 @@ export const adminService = {
       .neq('status', 'rejected')
       .order('created_at', { ascending: false });
 
-    if (profError) throw profError;
+    if (profError) {
+      console.error("Error fetching profiles in getStudentsWithProfiles:", profError);
+      throw profError;
+    }
     if (!profiles || profiles.length === 0) return [];
 
-    const { data: studentProfiles } = await supabase
+    const studentIds = profiles.map((p) => p.id);
+
+    // 1. Get student profiles
+    const { data: studentProfiles, error: spError } = await supabase
       .from('student_profiles')
-      .select('*, teacher:assigned_teacher_id(name)')
-      .in('id', profiles.map((p) => p.id));
+      .select('*, teacher:profiles!fk_assigned_teacher(name)')
+      .in('id', studentIds);
+    
+    if (spError) console.error("Error fetching student profiles in getStudentsWithProfiles:", spError);
+
+    // 2. Get pending interviews
+    const { data: pendingInterviews, error: intError } = await supabase
+      .from('interviews')
+      .select('id, student_id')
+      .eq('status', 'pending_admin_review')
+      .is('deleted_at', null)
+      .in('student_id', studentIds);
+    
+    if (intError) console.error("Error fetching interviews in getStudentsWithProfiles:", intError);
 
     const spMap: Record<string, StudentProfile> = {};
     (studentProfiles || []).forEach((sp: any) => {
       spMap[sp.id] = { ...sp, teacher_name: sp.teacher?.name };
     });
 
-    return profiles.map((p) => ({
+    const intMap: Record<string, string> = {};
+    (pendingInterviews || []).forEach((i: any) => {
+      intMap[i.student_id] = i.id;
+    });
+
+    const result = profiles.map((p) => ({
       ...p,
       studentProfile: spMap[p.id],
+      pendingInterviewId: intMap[p.id],
     }));
+
+    console.log("Admin getStudentsWithProfiles data:", result);
+    return result;
   },
 
   // Interviewer Management

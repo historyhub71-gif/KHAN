@@ -7,10 +7,10 @@ import {
   FlatList,
   Modal,
   RefreshControl,
+  TextInput as RNTextInput,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput as RNTextInput,
   TouchableOpacity,
   View
 } from 'react-native';
@@ -27,8 +27,15 @@ interface AdmissionDeal {
   id: string;
   student_name: string;
   student_email: string;
+  father_name?: string;
+  phone_number?: string;
+  whatsapp_number?: string;
+  student_id?: string;
+  student_account_status?: 'pending' | 'waiting_approval' | 'approved_for_signup' | 'account_created' | 'approved' | 'rejected';
   course_id: string;
   course_name?: string;
+  class?: string;
+  teacher_id?: string;
   original_fee: number;
   discount_amount: number;
   discount_percentage: number;
@@ -58,10 +65,13 @@ export default function AdmissionFeesScreen() {
   // Form Modal State
   const [formModalVisible, setFormModalVisible] = useState(false);
   const [editingDeal, setEditingDeal] = useState<AdmissionDeal | null>(null);
-  
+
   // Form Fields State
   const [studentName, setStudentName] = useState('');
   const [studentEmail, setStudentEmail] = useState('');
+  const [fatherName, setFatherName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [whatsappNumber, setWhatsappNumber] = useState('');
   const [courseId, setCourseId] = useState('');
   const [originalFee, setOriginalFee] = useState('');
   const [discountAmount, setDiscountAmount] = useState('');
@@ -113,7 +123,7 @@ export default function AdmissionFeesScreen() {
     setOriginalFee(val);
     const orig = parseFloat(val) || 0;
     const disc = parseFloat(discountAmount) || 0;
-    
+
     const final = Math.max(0, orig - disc);
     setFinalFee(final.toString());
 
@@ -178,6 +188,9 @@ export default function AdmissionFeesScreen() {
     setEditingDeal(null);
     setStudentName('');
     setStudentEmail('');
+    setFatherName('');
+    setPhoneNumber('');
+    setWhatsappNumber('');
     setCourseId(courses[0]?.id || '');
     setOriginalFee('15000');
     setDiscountAmount('0');
@@ -197,6 +210,9 @@ export default function AdmissionFeesScreen() {
     setEditingDeal(deal);
     setStudentName(deal.student_name);
     setStudentEmail(deal.student_email || '');
+    setFatherName(deal.father_name || '');
+    setPhoneNumber(deal.phone_number || '');
+    setWhatsappNumber(deal.whatsapp_number || '');
     setCourseId(deal.course_id || '');
     setOriginalFee(deal.original_fee.toString());
     setDiscountAmount(deal.discount_amount.toString());
@@ -242,6 +258,9 @@ export default function AdmissionFeesScreen() {
           paymentStatus,
           remarks: remarks.trim(),
           adminId: user!.id,
+          fatherName: fatherName.trim(),
+          phoneNumber: phoneNumber.trim(),
+          whatsappNumber: whatsappNumber.trim(),
         });
         Alert.alert('Success', 'Admission deal updated successfully.');
       } else {
@@ -257,6 +276,9 @@ export default function AdmissionFeesScreen() {
           paymentStatus,
           remarks: remarks.trim(),
           adminId: user!.id,
+          fatherName: fatherName.trim(),
+          phoneNumber: phoneNumber.trim(),
+          whatsappNumber: whatsappNumber.trim(),
         });
         Alert.alert('Success', 'Admission agreement saved.');
       }
@@ -566,6 +588,35 @@ export default function AdmissionFeesScreen() {
                 containerStyle={styles.formField}
               />
 
+              <TextInput
+                label="Father Name"
+                placeholder="e.g. Robert Doe"
+                value={fatherName}
+                onChangeText={setFatherName}
+                editable={!isSubmitting}
+                containerStyle={styles.formField}
+              />
+
+              <TextInput
+                label="Phone Number"
+                placeholder="e.g. +923001234567"
+                value={phoneNumber}
+                onChangeText={setPhoneNumber}
+                editable={!isSubmitting}
+                keyboardType="phone-pad"
+                containerStyle={styles.formField}
+              />
+
+              <TextInput
+                label="WhatsApp Number"
+                placeholder="e.g. +923001234567"
+                value={whatsappNumber}
+                onChangeText={setWhatsappNumber}
+                editable={!isSubmitting}
+                keyboardType="phone-pad"
+                containerStyle={styles.formField}
+              />
+
               {/* Course Selector Dropdown */}
               <Text style={[styles.inputLabel, { color: colors.text }]}>Selected Course</Text>
               <TouchableOpacity
@@ -710,19 +761,22 @@ export default function AdmissionFeesScreen() {
             {summaryDeal && (
               <View style={styles.summaryBody}>
                 <SummaryRow label="Student Name" value={summaryDeal.student_name} colors={colors} />
+                <SummaryRow label="Father Name" value={summaryDeal.father_name || 'N/A'} colors={colors} />
+                <SummaryRow label="Phone Number" value={summaryDeal.phone_number || 'N/A'} colors={colors} />
+                <SummaryRow label="WhatsApp Number" value={summaryDeal.whatsapp_number || 'N/A'} colors={colors} />
                 <SummaryRow
                   label="Enrolled Course"
                   value={courses.find(c => c.id === summaryDeal.course_id)?.name || summaryDeal.course_name || 'N/A'}
                   colors={colors}
                 />
                 <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
-                
+
                 <SummaryRow label="Standard Course Fee" value={`Rs. ${Number(summaryDeal.original_fee).toLocaleString()}`} colors={colors} />
                 <SummaryRow label="Negotiated Discount" value={`-Rs. ${Number(summaryDeal.discount_amount).toLocaleString()} (${summaryDeal.discount_percentage}%)`} colors={colors} />
-                
+
                 <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
                 <SummaryRow label="Final Payable Amount" value={`Rs. ${Number(summaryDeal.final_fee).toLocaleString()}`} isBold colors={colors} />
-                
+
                 <View style={styles.summaryStatusBadgeRow}>
                   <Text style={[styles.summaryRowLabel, { color: colors.textSecondary }]}>Payment Status:</Text>
                   <View style={[styles.statusLabel, { backgroundColor: summaryDeal.payment_status === 'paid' ? colors.success + '15' : colors.warning + '15' }]}>
@@ -809,26 +863,28 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 10,
-    letterSpacing: 0.2,
+    fontSize: 18,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    marginTop: 12,
+    marginBottom: 0,
+    letterSpacing: 0.4,
   },
   sectionDesc: {
-    fontSize: 12,
-    marginTop: 2,
-    fontWeight: '500',
+    fontSize: 10,
+    marginTop: 0,
+    fontWeight: '400',
   },
   statsScroll: {
     flexDirection: 'row',
-    marginBottom: 20,
+    marginBottom: 10,
   },
   statCardItem: {
-    width: 170,
+    width: 150,
     borderRadius: 16,
     borderWidth: 1,
-    padding: 14,
-    marginRight: 10,
+    padding: 8,
+    marginRight: 8,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -836,53 +892,56 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
   },
   statItemHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 2,
+    marginBottom: 4,
   },
   statIconContainer: {
-    width: 32,
-    height: 32,
+    width: 22,
+    height: 22,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   statLabel: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '400',
     flex: 1,
   },
   statVal: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '400',
     marginBottom: 2,
   },
   statSub: {
     fontSize: 10,
   },
   controlHeader: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 5,
   },
   createBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 12,
+    paddingHorizontal: 28,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: 28,
   },
   createBtnText: {
-    fontSize: 12.5,
-    fontWeight: '700',
+    fontSize: 13.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 0,
+    fontWeight: '500',
   },
   filterBox: {
     borderRadius: 16,
     borderWidth: 1,
-    padding: 12,
+    padding: 8,
     marginBottom: 16,
     gap: 10,
   },
@@ -919,9 +978,9 @@ const styles = StyleSheet.create({
     maxWidth: '85%',
   },
   dealCard: {
-    borderRadius: 18,
+    borderRadius: 25,
     borderWidth: 1,
-    padding: 16,
+    padding: 8,
     marginBottom: 12,
     elevation: 2,
     shadowColor: '#000',
@@ -944,7 +1003,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dealAvatarText: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '800',
   },
   dealInfoCol: {
@@ -952,12 +1011,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dealStudentName: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '700',
     marginBottom: 2,
   },
   dealCourseLabel: {
-    fontSize: 12,
+    fontSize: 9,
     fontWeight: '500',
     marginBottom: 6,
   },
@@ -967,15 +1026,15 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   dealOrigFee: {
-    fontSize: 11,
+    fontSize: 12,
     textDecorationLine: 'line-through',
   },
   dealDiscValue: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '300',
   },
   dealFinalCol: {
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'center',
   },
   dealFinalAmount: {
@@ -984,13 +1043,14 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   statusLabel: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 15,
     paddingVertical: 3,
+    alignSelf: 'flex-end',
     borderRadius: 6,
   },
   statusLabelText: {
-    fontSize: 9.5,
-    fontWeight: '900',
+    fontSize: 8.5,
+    fontWeight: '500',
     letterSpacing: 0.2,
   },
   dealRemarksText: {
@@ -1014,11 +1074,11 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 6,
     borderWidth: 1.2,
   },
   dealActionBtnText: {
-    fontSize: 11.5,
+    fontSize: 12.5,
     fontWeight: '700',
   },
   emptyContainer: {
@@ -1047,7 +1107,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   dropdownTitle: {
-    fontSize: 15,
+    fontSize: 20,
     fontWeight: '800',
     marginBottom: 12,
   },
@@ -1057,8 +1117,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   dropdownRowText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '400',
   },
   modalOverlay: {
     flex: 1,
@@ -1066,8 +1126,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   modalContent: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
     maxHeight: '90%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
@@ -1076,36 +1136,36 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   modalTitle: {
-    fontSize: 17,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '500',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
     paddingVertical: 16,
     borderBottomWidth: 1,
   },
   modalStudentSub: {
-    fontSize: 12,
+    fontSize: 9,
     marginTop: 2,
     fontWeight: '600',
   },
   formField: {
-    marginBottom: 14,
+    marginBottom: 16,
   },
   formRow: {
-    flexDirection: 'row',
-    gap: 12,
+    flexDirection: 'column',
+    gap: 8,
   },
   inputLabel: {
-    fontSize: 12.5,
-    fontWeight: '700',
+    fontSize: 18.5,
+    fontWeight: '500',
     marginBottom: 6,
   },
   dropdownTrigger: {
-    height: 48,
+    height: 43,
     borderRadius: 12,
     borderWidth: 1.5,
     flexDirection: 'row',
@@ -1134,12 +1194,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   statusBtnText: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: 13.15,
+    fontWeight: '500',
   },
   overlayModalCenter: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -1147,7 +1207,7 @@ const styles = StyleSheet.create({
   summaryCardModal: {
     width: '100%',
     borderRadius: 20,
-    padding: 24,
+    padding: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
@@ -1155,9 +1215,9 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   summaryModalTitleRow: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     marginBottom: 20,
   },
   summaryModalTitle: {
@@ -1165,7 +1225,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   summaryBody: {
-    marginBottom: 20,
+    marginBottom: 7,
   },
   summaryRowItem: {
     flexDirection: 'row',
@@ -1175,11 +1235,11 @@ const styles = StyleSheet.create({
   },
   summaryRowLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '400',
   },
   summaryRowVal: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '300',
   },
   summaryDivider: {
     height: 1,
@@ -1189,7 +1249,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 9,
   },
   summaryRemarksContainer: {
     borderRadius: 12,
@@ -1198,14 +1258,14 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   summaryRemarksTitle: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '100',
     marginBottom: 6,
     textTransform: 'uppercase',
   },
   summaryRemarksText: {
-    fontSize: 13,
+    fontSize: 2,
     lineHeight: 18,
-    fontWeight: '500',
+    fontWeight: '200',
   },
 });

@@ -2,11 +2,14 @@ import { MaterialIcons } from '@expo/vector-icons';
 import React from 'react';
 import {
   FlatList,
+  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  ViewStyle,
 } from 'react-native';
+import type { RefreshControlProps } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { Notification } from '../../types';
 import { EmptyState } from '../common/EmptyState';
@@ -20,6 +23,9 @@ interface NotificationListProps {
   isSelectionMode?: boolean;
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
+  listStyle?: ViewStyle;
+  listHeader?: React.ReactElement;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
 }
 
 function formatTime(iso: string) {
@@ -40,8 +46,15 @@ export const NotificationList: React.FC<NotificationListProps> = ({
   isSelectionMode = false,
   selectedIds = new Set(),
   onToggleSelect,
+  listStyle,
+  listHeader,
+  refreshControl,
 }) => {
   const { colors } = useTheme();
+
+  if (isLoading && notifications.length === 0) {
+    return <LoadingSpinner />;
+  }
 
   if (notifications.length === 0) {
     return (
@@ -124,11 +137,19 @@ export const NotificationList: React.FC<NotificationListProps> = ({
       keyExtractor={(item) => item.id}
       renderItem={({ item }) => renderRow(item)}
       ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+      style={listStyle}
+      ListHeaderComponent={listHeader}
+      refreshControl={refreshControl}
+      contentContainerStyle={{ paddingBottom: 24 }}
     />
   );
 };
 
 const styles = StyleSheet.create({
+  headerWrapper: {
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
   compactList: {
     gap: 8,
   },

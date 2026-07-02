@@ -9,7 +9,9 @@ export interface Profile {
   approved: boolean;
   status?: 'pending' | 'waiting_approval' | 'approved' | 'rejected';
   student_id?: string;
+  official_check_in_time?: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface AuthUser extends Profile {
@@ -167,7 +169,8 @@ export interface AdmissionDeal {
   id: string;
   student_name: string;
   student_email: string;
-  student_account_status: 'pending' | 'waiting_approval' | 'approved' | 'rejected';
+  student_account_status: 'pending' | 'waiting_approval' | 'approved_for_signup' | 'account_created' | 'approved' | 'rejected';
+  admission_status?: 'pending' | 'pending_admin_review' | 'approved' | 'rejected';
   father_name?: string;
   phone_number?: string;
   whatsapp_number?: string;
@@ -381,4 +384,3 @@ export interface FeeLedger {
   student_name?: string;
   collected_by_name?: string;
 }
-

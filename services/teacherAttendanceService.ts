@@ -21,10 +21,65 @@ export const teacherAttendanceService = {
     const todayStr = new Date().toISOString().slice(0, 10);
     const nowTimeStr = new Date().toTimeString().slice(0, 8); 
 
+    // Retrieve official check-in time from profile
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('official_check_in_time')
+      .eq('id', teacherId)
+      .single();
+
+    if (profileError) throw profileError;
+
+    const officialTime = profile?.official_check_in_time || '09:00 AM';
+    
+    // Parse time like "09:00 AM"
+    const match = officialTime.match(/^(\d{2}):(\d{2})\s*(AM|PM)$/i);
+    let limitHour = 9;
+    let limitMinute = 0;
+    if (match) {
+      let h = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      const ampm = match[3].toUpperCase();
+      if (ampm === 'PM' && h !== 12) {
+        h += 12;
+      } else if (ampm === 'AM' && h === 12) {
+        h = 0;
+      }
+      limitHour = h;
+      limitMinute = m;
+    }
+
     const checkInHour = parseInt(nowTimeStr.split(':')[0], 10);
     const checkInMinute = parseInt(nowTimeStr.split(':')[1], 10);
-    const isLate = checkInHour > 9 || (checkInHour === 9 && checkInMinute > 0);
-    const status = isLate ? 'late' : 'present';
+    const isLate = checkInHour > limitHour || (checkInHour === limitHour && checkInMinute > limitMinute);
+    let status: 'present' | 'absent' | 'late' = isLate ? 'late' : 'present';
+
+    if (status === 'late') {
+      // Find the first unconverted late record for this teacher
+      const { data: lateRecords, error: lateErr } = await supabase
+        .from('teacher_attendance')
+        .select('*')
+        .eq('teacher_id', teacherId)
+        .eq('status', 'late')
+        .order('date', { ascending: true });
+
+      if (lateErr) throw lateErr;
+
+      if (lateRecords && lateRecords.length > 0) {
+        // This is the second late record. Automatically convert:
+        // 1. Convert the first late to present (resets late counter)
+        const firstLate = lateRecords[0];
+        const { error: updateErr } = await supabase
+          .from('teacher_attendance')
+          .update({ status: 'present' })
+          .eq('id', firstLate.id);
+
+        if (updateErr) throw updateErr;
+
+        // 2. Set this record status to absent (creates 1 absent record)
+        status = 'absent';
+      }
+    }
 
     const { data, error } = await supabase
       .from('teacher_attendance')

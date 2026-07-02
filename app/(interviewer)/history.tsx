@@ -14,11 +14,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { ScreenContainer } from '../../component/common/ScreenContainer';
 import { Button } from '../../component/common/Button';
+import { ScreenContainer } from '../../component/common/ScreenContainer';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
-import { interviewerService } from '../../services/interviewerService';
 import { Interview } from '../../types';
 import { supabase } from '../../utils/supabase';
 
@@ -46,16 +45,17 @@ export default function HistoryScreen() {
 
       const { data, error } = await supabase
         .from('interviews')
-        .select('*, profiles:student_id(name)')
+        .select('*, profiles!student_id(name)')
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
       if (data) {
+        console.log("Interviewer history data", data);
         const mapped = data.map((row: any) => ({
           ...row,
-          student_name: row.profiles?.name,
+          student_name: row.profiles?.name || 'Unknown Student',
         }));
         setHistory(mapped);
         applyFilters(mapped, searchQuery, selectedType);
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   historyDate: {
-    fontSize: 11.5,
+    fontSize: 16.5,
     fontWeight: '500',
   },
   studentName: {

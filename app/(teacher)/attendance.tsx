@@ -1,11 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -16,13 +14,13 @@ import {
 import { ScreenContainer } from '../../component/common/ScreenContainer';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
+import { adminService } from '../../services/adminService';
 import { teacherAttendanceService } from '../../services/teacherAttendanceService';
 import { TeacherAttendance } from '../../types';
 
 export default function TeacherAttendanceScreen() {
   const { user } = useAuth();
   const { colors } = useTheme();
-  const router = useRouter();
 
   // State
   const [todayRecord, setTodayRecord] = useState<TeacherAttendance | null>(null);
@@ -30,6 +28,7 @@ export default function TeacherAttendanceScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [officialCheckInTime, setOfficialCheckInTime] = useState<string>('09:00 AM');
 
   // Digital clock effect
   useEffect(() => {
@@ -42,13 +41,17 @@ export default function TeacherAttendanceScreen() {
       setIsLoading(true);
       if (!user?.id) return;
 
-      const [todayRec, hist] = await Promise.all([
+      const [todayRec, hist, profile] = await Promise.all([
         teacherAttendanceService.getTodayRecord(user.id),
         teacherAttendanceService.getHistory(user.id),
+        adminService.getTeacher(user.id).catch(() => null),
       ]);
 
       setTodayRecord(todayRec);
       setHistory(hist);
+      if (profile?.official_check_in_time) {
+        setOfficialCheckInTime(profile.official_check_in_time);
+      }
     } catch (err) {
       console.error('Failed to load teacher attendance details:', err);
     } finally {
@@ -118,9 +121,24 @@ export default function TeacherAttendanceScreen() {
     return timeStr;
   };
 
+  // Parse "HH:MM AM/PM" into { hour, minute }
+  const parsedDeadline = (() => {
+    const match = officialCheckInTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (!match) return { hour: 9, minute: 0 };
+    let h = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10);
+    const ampm = match[3].toUpperCase();
+    if (ampm === 'PM' && h !== 12) h += 12;
+    else if (ampm === 'AM' && h === 12) h = 0;
+    return { hour: h, minute: m };
+  })();
+
   const isLateCheckIn = () => {
     const now = new Date();
-    return now.getHours() > 9 || (now.getHours() === 9 && now.getMinutes() > 0);
+    return (
+      now.getHours() > parsedDeadline.hour ||
+      (now.getHours() === parsedDeadline.hour && now.getMinutes() > parsedDeadline.minute)
+    );
   };
 
   return (
@@ -164,7 +182,7 @@ export default function TeacherAttendanceScreen() {
                   <Text style={styles.circleBtnText}>Check In</Text>
                 </TouchableOpacity>
                 <Text style={[styles.checkInLimit, { color: colors.textSecondary }]}>
-                  Arrival deadline: <Text style={{ fontWeight: '700', color: colors.text }}>09:00 AM</Text>
+                  Arrival deadline: <Text style={{ fontWeight: '700', color: colors.text }}>{officialCheckInTime}</Text>
                 </Text>
                 <View style={[styles.warningAlert, { backgroundColor: isLateCheckIn() ? colors.warning + '12' : colors.success + '12' }]}>
                   <Ionicons

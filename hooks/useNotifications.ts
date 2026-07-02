@@ -4,7 +4,7 @@ import { Notification } from '../types';
 import { supabase } from '../utils/supabase';
 
 export const useNotifications = (
-  studentId: string | undefined,
+  userId: string | undefined,
   onNewNotification?: (notification: Notification) => void
 ) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -14,13 +14,13 @@ export const useNotifications = (
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!studentId) return;
+    if (!userId) return;
     try {
       setIsLoading(true);
       setError(null);
       const [list, count] = await Promise.all([
-        notificationService.getForStudent(studentId),
-        notificationService.getUnreadCount(studentId),
+        notificationService.getForUser(userId),
+        notificationService.getUnreadCount(userId),
       ]);
       setNotifications(list);
       setUnreadCount(count);
@@ -29,29 +29,29 @@ export const useNotifications = (
     } finally {
       setIsLoading(false);
     }
-  }, [studentId]);
+  }, [userId]);
 
   const markRead = useCallback(
     async (notificationId: string) => {
-      if (!studentId) return;
-      await notificationService.markRead(notificationId, studentId);
+      if (!userId) return;
+      await notificationService.markRead(notificationId, userId);
       setNotifications((prev) =>
         prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
       );
       setUnreadCount((c) => Math.max(0, c - 1));
     },
-    [studentId]
+    [userId]
   );
 
   const markAllRead = useCallback(async () => {
-    if (!studentId) return;
-    await notificationService.markAllRead(studentId);
+    if (!userId) return;
+    await notificationService.markAllRead(userId);
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
-  }, [studentId]);
+  }, [userId]);
 
   const deleteNotifications = useCallback(async (ids: string[]) => {
-    if (!studentId || !ids.length) return;
+    if (!userId || !ids.length) return;
     // Capture unread count of to-be-deleted items BEFORE the async delete
     setNotifications((prev) => {
       const deletedUnreadCount = prev.filter((n) => ids.includes(n.id) && !n.read).length;
@@ -60,8 +60,8 @@ export const useNotifications = (
       }
       return prev.filter((n) => !ids.includes(n.id));
     });
-    await notificationService.deleteNotifications(ids, studentId);
-  }, [studentId]);
+    await notificationService.deleteNotifications(ids, userId);
+  }, [userId]);
 
   const refreshRef = useRef(refresh);
   const onNewNotificationRef = useRef(onNewNotification);
@@ -75,18 +75,18 @@ export const useNotifications = (
   }, [onNewNotification]);
 
   useEffect(() => {
-    if (!studentId) return;
+    if (!userId) return;
     refreshRef.current();
 
     const channel = supabase
-      .channel(`notifications:${studentId}`)
+      .channel(`notifications:${userId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'notifications',
-          filter: `student_id=eq.${studentId}`,
+          filter: `user_id=eq.${userId}`,
         },
         (payload) => {
           if (payload.eventType === 'INSERT' && onNewNotificationRef.current) {
@@ -105,7 +105,7 @@ export const useNotifications = (
         channelRef.current = null;
       }
     };
-  }, [studentId]);
+  }, [userId]);
 
   return {
     notifications,

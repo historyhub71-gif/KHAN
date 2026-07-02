@@ -19,6 +19,7 @@ import {
 import { ScreenContainer } from '../../component/common/ScreenContainer';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
+import { dashboardService } from '../../services/dashboardService';
 import { teacherService } from '../../services/teacherService';
 import { Course } from '../../types';
 import { supabase } from '../../utils/supabase';
@@ -673,16 +674,43 @@ function MyStudentsTabScreen({ user, colors }: { user: any; colors: any }) {
                         {new Date(iv.created_at).toLocaleDateString()}
                       </Text>
                     </View>
+                    
                     <View style={msStyles.historyScoreRow}>
-                      <Text style={[msStyles.historyScore, { color: colors.text }]}>Total: {iv.total_score}/50</Text>
+                      <Text style={[msStyles.historyScore, { color: colors.text }]}>Total Score: {iv.total_score}/50</Text>
                       {iv.assigned_level && (
                         <View style={[msStyles.pill, { backgroundColor: getLevelColor(iv.assigned_level) + '20' }]}>
                           <Text style={[msStyles.pillText, { color: getLevelColor(iv.assigned_level) }]}>{iv.assigned_level}</Text>
                         </View>
                       )}
                     </View>
+
+                    {/* Detailed Scores Section */}
+                    <View style={{ marginTop: 8, gap: 4 }}>
+                      <Text style={{ fontSize: 11, color: colors.textSecondary, fontWeight: '600' }}>
+                        Sub-Scores: Eng {iv.english} | Comm {iv.communication} | Conf {iv.confidence} | Tech {iv.technical_skills} | Learn {iv.learning_ability}
+                      </Text>
+                      
+                      {iv.strengths && (
+                        <Text style={{ fontSize: 12, color: colors.text, marginTop: 4 }}>
+                          <Text style={{ fontWeight: '700', color: colors.success }}>Strengths: </Text>{iv.strengths}
+                        </Text>
+                      )}
+                      
+                      {iv.weaknesses && (
+                        <Text style={{ fontSize: 12, color: colors.text }}>
+                          <Text style={{ fontWeight: '700', color: colors.danger }}>Weaknesses: </Text>{iv.weaknesses}
+                        </Text>
+                      )}
+
+                      {iv.recommendations && (
+                        <Text style={{ fontSize: 12, color: colors.text, fontStyle: 'italic' }}>
+                          <Text style={{ fontWeight: '700', fontStyle: 'normal', color: colors.primary }}>ASR Recommendations: </Text>{iv.recommendations}
+                        </Text>
+                      )}
+                    </View>
+
                     {iv.notes && (
-                      <Text style={[msStyles.historyNotes, { color: colors.textSecondary }]} numberOfLines={2}>
+                      <Text style={[msStyles.historyNotes, { color: colors.textSecondary, marginTop: 8 }]} numberOfLines={3}>
                         {iv.notes}
                       </Text>
                     )}
@@ -958,6 +986,7 @@ export default function TeacherDashboardScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const router = useRouter();
   const [courses, setCourses] = useState<Course[]>([]);
+  const [stats, setStats] = useState({ students: 0, courses: 0, notifications: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -973,32 +1002,36 @@ export default function TeacherDashboardScreen() {
     }
   }, [user, authLoading, router]);
 
-  const fetchCourses = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     try {
-      if (courses.length === 0) {
-        setIsLoading(true);
-      }
+      setIsLoading(true);
       if (!user?.id) return;
-      const data = await teacherService.getCourses(user.id);
-      setCourses(data);
+      
+      const [coursesData, statsData] = await Promise.all([
+        teacherService.getCourses(user.id),
+        dashboardService.getTeacherStats(user.id)
+      ]);
+      
+      setCourses(coursesData);
+      setStats(statsData);
     } catch (err) {
       console.error(err);
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id, courses.length]);
+  }, [user?.id]);
 
   useFocusEffect(
     useCallback(() => {
       if (user?.id) {
-        fetchCourses();
+        fetchData();
       }
-    }, [user?.id, fetchCourses])
+    }, [user?.id, fetchData])
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchCourses();
+    await fetchData();
     setRefreshing(false);
   };
 

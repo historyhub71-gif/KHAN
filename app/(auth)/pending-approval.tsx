@@ -55,7 +55,9 @@ export default function PendingApprovalScreen() {
           {/* Status Badge */}
           <View style={[styles.statusBadge, { backgroundColor: colors.warning + '15' }]}>
             <View style={[styles.dot, { backgroundColor: colors.warning }]} />
-            <Text style={[styles.statusText, { color: colors.warning }]}>Verification Required</Text>
+            <Text style={[styles.statusText, { color: colors.warning }]}>
+              {user?.role === 'student' ? 'Waiting For Approval' : 'Verification Required'}
+            </Text>
           </View>
 
           {/* Icon Section */}
@@ -71,7 +73,9 @@ export default function PendingApprovalScreen() {
           </View>
 
           {/* Main Message */}
-          <Text style={[styles.title, { color: colors.text }]}>Account Pending Approval</Text>
+          <Text style={[styles.title, { color: colors.text }]}>
+            {user?.role === 'student' ? 'Waiting For Approval' : 'Account Pending Approval'}
+          </Text>
           <Text style={[styles.message, { color: colors.textSecondary }]}>
             Hello <Text style={{ color: colors.text, fontWeight: '700' }}>{user?.name}</Text>, your registration is successful. An administrator is currently reviewing your profile to ensure security.
           </Text>
