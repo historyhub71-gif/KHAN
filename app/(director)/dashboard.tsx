@@ -83,7 +83,7 @@ function HomeTabScreen({ user, stats, isLoading, refreshing, onRefresh, colors }
           </View>
           <View style={styles.headerRight}>
             <View style={[styles.roleBadge, { backgroundColor: colors.secondary + '15' }]}>
-              <Text style={[styles.roleBadgeText, { color: colors.secondary }]}>DIRECTOR</Text>
+              <Text style={[styles.roleBadgeText, { color: colors.secondary }]}>ADMIN</Text>
             </View>
           </View>
         </View>
@@ -597,7 +597,7 @@ function ProfileTabScreen({ user, colors, isDark, toggleTheme, handleLogout, rou
           <Text style={[styles.profileName, { color: colors.text }]}>{user?.name}</Text>
           <Text style={[styles.profileEmail, { color: colors.textSecondary }]}>{user?.email}</Text>
           <View style={[styles.roleLabel, { backgroundColor: colors.secondary + '15' }]}>
-            <Text style={[styles.roleLabelText, { color: colors.secondary }]}>DIRECTOR</Text>
+            <Text style={[styles.roleLabelText, { color: colors.secondary }]}>ADMINISTRATOR</Text>
           </View>
         </View>
 

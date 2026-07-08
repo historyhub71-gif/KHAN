@@ -229,6 +229,15 @@ function HistoryTabScreen({
   interviewsHistory,
   onViewDetails,
 }: HistoryTabProps) {
+  const [historySegment, setHistorySegment] = useState<'all' | 'admissions' | 'reviews'>('all');
+
+  const filteredHistory = interviewsHistory.filter((item) => {
+    if (historySegment === 'all') return true;
+    if (historySegment === 'admissions') return item.interview_type === 'admission';
+    if (historySegment === 'reviews') return item.interview_type === 'progress_review';
+    return true;
+  });
+
   return (
     <ScreenContainer>
       <ScrollView
@@ -246,7 +255,38 @@ function HistoryTabScreen({
           </Text>
         </View>
 
-        {interviewsHistory.length === 0 ? (
+        {/* Segmented Control */}
+        <View style={[styles.segmentContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <TouchableOpacity
+            style={[styles.segmentButton, historySegment === 'all' && { backgroundColor: colors.success }]}
+            onPress={() => setHistorySegment('all')}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.segmentText, { color: historySegment === 'all' ? colors.white : colors.textSecondary }]}>
+              All ({interviewsHistory.length})
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.segmentButton, historySegment === 'admissions' && { backgroundColor: colors.success }]}
+            onPress={() => setHistorySegment('admissions')}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.segmentText, { color: historySegment === 'admissions' ? colors.white : colors.textSecondary }]}>
+              Admissions ({interviewsHistory.filter(i => i.interview_type === 'admission').length})
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.segmentButton, historySegment === 'reviews' && { backgroundColor: colors.success }]}
+            onPress={() => setHistorySegment('reviews')}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.segmentText, { color: historySegment === 'reviews' ? colors.white : colors.textSecondary }]}>
+              Reviews ({interviewsHistory.filter(i => i.interview_type === 'progress_review').length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {filteredHistory.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.surface, borderColor: colors.border, paddingVertical: 60 }]}>
             <Ionicons name="document-text-outline" size={50} color={colors.textSecondary} />
             <Text style={[styles.emptyCardText, { color: colors.textSecondary, marginTop: 12 }]}>
@@ -255,7 +295,7 @@ function HistoryTabScreen({
           </View>
         ) : (
           <View style={styles.historyList}>
-            {interviewsHistory.map((item) => (
+            {filteredHistory.map((item) => (
               <TouchableOpacity
                 key={item.id}
                 style={[styles.historyCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
@@ -281,11 +321,23 @@ function HistoryTabScreen({
                   </View>
                   <View style={[
                     styles.levelBadge,
-                    { backgroundColor: item.assigned_level === 'Advanced' ? colors.success + '15' : item.assigned_level === 'Intermediate' ? colors.secondary + '15' : colors.danger + '15' }
+                    { 
+                      backgroundColor: 
+                        item.assigned_level === 'Advanced' ? colors.success + '15' : 
+                        item.assigned_level === 'Intermediate' ? colors.secondary + '15' : 
+                        item.assigned_level === 'Elementary' ? colors.primary + '15' : 
+                        colors.danger + '15' 
+                    }
                   ]}>
                     <Text style={[
                       styles.levelBadgeText,
-                      { color: item.assigned_level === 'Advanced' ? colors.success : item.assigned_level === 'Intermediate' ? colors.secondary : colors.danger }
+                      { 
+                        color: 
+                          item.assigned_level === 'Advanced' ? colors.success : 
+                          item.assigned_level === 'Intermediate' ? colors.secondary : 
+                          item.assigned_level === 'Elementary' ? colors.primary : 
+                          colors.danger 
+                      }
                     ]}>
                       {item.assigned_level}
                     </Text>
@@ -485,6 +537,11 @@ export default function InterviewerDashboardScreen() {
   const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
+      // Auto-trigger due reviews notifications check in background
+      admissionService.triggerForthnightNotifications().catch(err => {
+        console.warn('Failed to auto-trigger fortnight notifications:', err);
+      });
+
       const [newStuds, reviews] = await Promise.all([
         interviewerService.getNewStudents(),
         interviewerService.getPendingProgressReviews(),
@@ -621,9 +678,10 @@ export default function InterviewerDashboardScreen() {
       }
 
       const totalScore = english + communication + confidence + technical + learning;
-      let assignedLevel: 'Beginner' | 'Intermediate' | 'Advanced' = 'Beginner';
+      let assignedLevel: 'Beginner' | 'Elementary' | 'Intermediate' | 'Advanced' = 'Beginner';
       if (totalScore >= 40) assignedLevel = 'Advanced';
       else if (totalScore >= 25) assignedLevel = 'Intermediate';
+      else if (totalScore >= 10) assignedLevel = 'Elementary';
 
       await admissionService.submitInterviewForReview({
         studentId: studentId,
@@ -659,9 +717,10 @@ export default function InterviewerDashboardScreen() {
       setSubmitting(true);
 
       const totalScore = english + communication + confidence + technical + learning;
-      let assignedLevel: 'Beginner' | 'Intermediate' | 'Advanced' = 'Beginner';
+      let assignedLevel: 'Beginner' | 'Elementary' | 'Intermediate' | 'Advanced' = 'Beginner';
       if (totalScore >= 40) assignedLevel = 'Advanced';
       else if (totalScore >= 25) assignedLevel = 'Intermediate';
+      else if (totalScore >= 10) assignedLevel = 'Elementary';
 
       await interviewerService.completeProgressReview({
         reviewId: selectedReview.id,
@@ -700,7 +759,7 @@ export default function InterviewerDashboardScreen() {
   if (!user) return null;
 
   const calculatedTotal = english + communication + confidence + technical + learning;
-  const calculatedLevel = calculatedTotal >= 40 ? 'Advanced' : calculatedTotal >= 25 ? 'Intermediate' : 'Beginner';
+  const calculatedLevel = calculatedTotal >= 40 ? 'Advanced' : calculatedTotal >= 25 ? 'Intermediate' : calculatedTotal >= 10 ? 'Elementary' : 'Beginner';
 
   return (
     <View style={{ flex: 1 }}>
@@ -1909,5 +1968,24 @@ const styles = StyleSheet.create({
   teacherPickerName: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  segmentContainer: {
+    flexDirection: 'row',
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 4,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  segmentButton: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

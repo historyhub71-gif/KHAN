@@ -892,32 +892,9 @@ CREATE TRIGGER trg_calculate_interview_total
   BEFORE INSERT OR UPDATE ON public.interviews
   FOR EACH ROW EXECUTE FUNCTION public.calculate_interview_total();
 
--- Trigger: auto-schedule fortnight reviews after admission interview (FIXED - uses fortnight_reviews, NOT student_progress_reviews)
-DROP FUNCTION IF EXISTS public.auto_schedule_progress_review() CASCADE;
-CREATE OR REPLACE FUNCTION public.auto_schedule_progress_review()
-RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-  IF NEW.interview_type = 'admission' AND NEW.deleted_at IS NULL
-     AND NEW.status IN ('pending_admin_review', 'admin_approved', 'completed') THEN
-    IF NOT EXISTS (
-      SELECT 1 FROM public.fortnight_reviews
-      WHERE student_id = NEW.student_id AND completed_at IS NULL
-    ) THEN
-      INSERT INTO public.fortnight_reviews (student_id, review_number, scheduled_date, created_at)
-      VALUES
-        (NEW.student_id, 1, (COALESCE(NEW.created_at, now())::date + INTERVAL '15 days')::date, now()),
-        (NEW.student_id, 2, (COALESCE(NEW.created_at, now())::date + INTERVAL '30 days')::date, now()),
-        (NEW.student_id, 3, (COALESCE(NEW.created_at, now())::date + INTERVAL '45 days')::date, now());
-    END IF;
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
+-- Trigger: safety-net for fortnight review scheduling (DISABLED/REMOVED)
 DROP TRIGGER IF EXISTS trg_auto_schedule_progress_review ON public.interviews;
-CREATE TRIGGER trg_auto_schedule_progress_review
-  AFTER INSERT OR UPDATE OF total_score ON public.interviews
-  FOR EACH ROW EXECUTE FUNCTION public.auto_schedule_progress_review();
+DROP FUNCTION IF EXISTS public.auto_schedule_progress_review() CASCADE;
 
 -- Trigger: auto-generate receipt number
 DROP FUNCTION IF EXISTS public.generate_receipt_number() CASCADE;
@@ -1342,13 +1319,11 @@ BEGIN
     ON CONFLICT (student_id, due_date) DO NOTHING;
   END IF;
 
-  -- Schedule fortnight reviews
+  -- Schedule fortnight reviews (Only schedule Review #1 initially. Subsequent reviews scheduled dynamically on completion)
   DELETE FROM public.fortnight_reviews WHERE student_id = v_interview.student_id AND completed_at IS NULL;
   INSERT INTO public.fortnight_reviews (student_id, review_number, scheduled_date, created_at)
   VALUES
-    (v_interview.student_id, 1, CURRENT_DATE + INTERVAL '15 days', NOW()),
-    (v_interview.student_id, 2, CURRENT_DATE + INTERVAL '30 days', NOW()),
-    (v_interview.student_id, 3, CURRENT_DATE + INTERVAL '45 days', NOW());
+    (v_interview.student_id, 1, CURRENT_DATE + INTERVAL '15 days', NOW());
 
   -- Notify teacher (student_id set so notification cascade-deletes on student removal)
   IF v_teacher_id IS NOT NULL THEN
@@ -1616,7 +1591,7 @@ DROP FUNCTION IF EXISTS public.notify_due_fortnight_reviews() CASCADE;
 CREATE OR REPLACE FUNCTION public.notify_due_fortnight_reviews()
 RETURNS int LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
-  v_review RECORD; v_asr RECORD; v_count int := 0;
+  v_review RECORD; v_asr RECORD; v_admin RECORD; v_count int := 0;
 BEGIN
   FOR v_review IN
     SELECT fr.*, p.name AS student_name
@@ -1624,14 +1599,43 @@ BEGIN
     JOIN public.profiles p ON p.id = fr.student_id
     WHERE fr.scheduled_date <= CURRENT_DATE AND fr.completed_at IS NULL
   LOOP
+    -- Notify all ASR / Interviewers
     FOR v_asr IN SELECT id FROM public.profiles WHERE role = 'interviewer' AND approved = true LOOP
-      INSERT INTO public.notifications (user_id, role, notification_type, title, message, read)
-      VALUES (v_asr.id, 'interviewer', 'fortnight_review_due', 'Fortnight Review Due',
-        'Review #' || v_review.review_number || ' for student ' || v_review.student_name || ' is due today.', false);
+      IF NOT EXISTS (
+        SELECT 1 FROM public.notifications 
+        WHERE user_id = v_asr.id 
+          AND notification_type = 'fortnight_review_due' 
+          AND message = 'Review #' || v_review.review_number || ' for ' || v_review.student_name || ' is due today.'
+      ) THEN
+        INSERT INTO public.notifications (user_id, student_id, role, notification_type, title, message, read)
+        VALUES (v_asr.id, v_review.student_id, 'interviewer', 'fortnight_review_due', 'Fortnight Review Due',
+          'Review #' || v_review.review_number || ' for ' || v_review.student_name || ' is due today.', false);
+      END IF;
     END LOOP;
-    INSERT INTO public.notifications (user_id, role, notification_type, title, message, read)
-    VALUES (v_review.student_id, 'student', 'progress_review_due', 'Your Progress Review is Due',
-      'Your ' || (v_review.review_number * 15) || '-day progress review is scheduled for today.', false);
+    -- Notify all Admins
+    FOR v_admin IN SELECT id FROM public.profiles WHERE role = 'admin' AND approved = true LOOP
+      IF NOT EXISTS (
+        SELECT 1 FROM public.notifications 
+        WHERE user_id = v_admin.id 
+          AND notification_type = 'fortnight_review_due' 
+          AND message = 'Review #' || v_review.review_number || ' for ' || v_review.student_name || ' is overdue and not yet completed.'
+      ) THEN
+        INSERT INTO public.notifications (user_id, student_id, role, notification_type, title, message, read)
+        VALUES (v_admin.id, v_review.student_id, 'admin', 'fortnight_review_due', 'Fortnight Review Overdue',
+          'Review #' || v_review.review_number || ' for ' || v_review.student_name || ' is overdue and not yet completed.', false);
+      END IF;
+    END LOOP;
+    -- Notify the Student
+    IF NOT EXISTS (
+      SELECT 1 FROM public.notifications 
+      WHERE user_id = v_review.student_id 
+        AND notification_type = 'progress_review_due' 
+        AND message = 'Your Day-' || (v_review.review_number * 15) || ' progress review is scheduled for today.'
+    ) THEN
+      INSERT INTO public.notifications (user_id, student_id, role, notification_type, title, message, read)
+      VALUES (v_review.student_id, v_review.student_id, 'student', 'progress_review_due', 'Your Progress Review is Due',
+        'Your Day-' || (v_review.review_number * 15) || ' progress review is scheduled for today.', false);
+    END IF;
     v_count := v_count + 1;
   END LOOP;
   RETURN v_count;

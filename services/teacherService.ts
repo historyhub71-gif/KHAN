@@ -309,21 +309,20 @@ export const teacherService = {
     progressNotes: string;
     improvementPercentage: number;
   }): Promise<void> => {
+    // Use student_progress_reports table — teachers have INSERT/SELECT RLS permission here.
+    // The interviews table only allows ASR/interviewers to insert (RLS policy).
     const { error } = await supabase
-      .from('interviews')
+      .from('student_progress_reports')
       .insert({
         student_id: params.studentId,
-        interviewer_id: params.teacherId,
-        interview_type: 'progress_review',
-        notes: params.progressNotes,
-        recommendations: `Improvement: ${params.improvementPercentage}%`,
-        total_score: params.improvementPercentage, // Using total_score to store improvement % for simplicity in unified table
-        status: 'completed',
+        teacher_id: params.teacherId,
+        progress_notes: params.progressNotes,
+        improvement_percentage: params.improvementPercentage,
       });
 
     if (error) throw error;
 
-    // Notify the student (student_id is set for cascade-delete on student removal)
+    // Notify the student
     await supabase.from('notifications').insert({
       user_id: params.studentId,
       student_id: params.studentId,
@@ -338,19 +337,15 @@ export const teacherService = {
   // Get progress reports for a student
   getStudentProgressReports: async (studentId: string): Promise<any[]> => {
     const { data, error } = await supabase
-      .from('interviews')
-      .select('*, teacher:interviewer_id(name)')
+      .from('student_progress_reports')
+      .select('*, teacher:teacher_id(name)')
       .eq('student_id', studentId)
-      .eq('interview_type', 'progress_review')
-      .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
     return (data || []).map((r: any) => ({
       ...r,
-      progress_notes: r.notes,
-      improvement_percentage: r.total_score,
       teacher_name: r.teacher?.name,
     }));
   },

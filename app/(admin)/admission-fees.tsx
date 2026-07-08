@@ -291,6 +291,29 @@ export default function AdmissionFeesScreen() {
     }
   };
 
+  // Delete an admission deal
+  const handleDeleteDeal = (dealId: string, name: string) => {
+    Alert.alert(
+      'Delete Admission Deal',
+      `Are you sure you want to permanently delete ${name}'s admission deal? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await feeService.deleteAdmissionDeal(dealId);
+              fetchData(true);
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to delete admission deal.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Mark status as Paid
   const handleMarkAsPaid = (dealId: string, name: string) => {
     if (!isAdmin) {
@@ -481,6 +504,15 @@ export default function AdmissionFeesScreen() {
                         )}
                       </>
                     )}
+
+                    <TouchableOpacity
+                      style={[styles.dealActionBtn, { borderColor: colors.danger, backgroundColor: colors.danger + '08' }]}
+                      onPress={() => handleDeleteDeal(item.id, item.student_name)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="trash-outline" size={14} color={colors.danger} />
+                      <Text style={[styles.dealActionBtnText, { color: colors.danger }]}>Delete</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               );

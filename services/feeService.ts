@@ -427,6 +427,16 @@ export const feeService = {
     return deal;
   },
 
+  // Delete an admission deal (hard delete — removes the record from DB)
+  deleteAdmissionDeal: async (id: string): Promise<void> => {
+    const { error } = await supabase
+      .from('admission_deals')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+  },
+
   // Director directly collects fee — instantly marks as PAID, generates receipt.
   // remainingBalance is entered by the Director; it is NOT auto-calculated.
   collectPaymentDirectly: async (params: {

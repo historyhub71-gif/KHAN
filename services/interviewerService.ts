@@ -8,20 +8,25 @@ export const interviewerService = {
     const result: any[] = [];
     
     try {
-      // 1. Get existing admission interviews to filter them out (using both ID and Email)
+      // 1. Get ALL admission interviews (even if status is pending_admin_review or completed)
       const { data: interviews, error: interviewError } = await supabase
         .from('interviews')
-        .select('student_id, student_email')
+        .select('student_id, student_email, status')
         .eq('interview_type', 'admission')
-        .is('deleted_at', null)
-        .in('status', ['admin_approved', 'completed', 'pending_admin_review']);
+        .is('deleted_at', null);
 
       if (interviewError) {
         console.warn("[interviewerService] Error fetching existing interviews:", interviewError.message);
       }
       
-      const interviewedIds = new Set(interviews?.map((i) => i.student_id).filter(Boolean) || []);
-      const interviewedEmails = new Set(interviews?.map((i) => i.student_email).filter(Boolean) || []);
+      // Build case-insensitive sets of already interviewed IDs and emails
+      const interviewedIds = new Set<string>();
+      const interviewedEmails = new Set<string>();
+
+      (interviews || []).forEach(i => {
+        if (i.student_id) interviewedIds.add(i.student_id);
+        if (i.student_email) interviewedEmails.add(i.student_email.toLowerCase().trim());
+      });
 
       // 2. Get students who HAVE signed up
       const { data: profiles, error: profileError } = await supabase
@@ -36,7 +41,28 @@ export const interviewerService = {
         .eq('role', 'student')
         .neq('status', 'rejected');
 
-      if (profileError) {
+      if (!profileError && profiles) {
+        profiles.forEach((s: any) => {
+          const emailKey = s.email?.toLowerCase().trim();
+          if (interviewedIds.has(s.id) || (emailKey && interviewedEmails.has(emailKey))) {
+            return; // Skip: already interviewed
+          }
+
+          const deal = s.admission_deals?.[0] || null;
+          if (deal && ['pending_admin_review', 'approved', 'rejected'].includes(deal.admission_status)) {
+            return; // Skip: deal is already assessed or approved/rejected
+          }
+
+          const statusVal = deal?.admission_status || deal?.student_account_status || 'Pending';
+          result.push({
+            ...s,
+            course_name: deal?.course?.name || 'N/A',
+            interview_status: s.status === 'waiting_approval' ? 'Waiting Interview' : statusVal,
+            created_at: deal?.created_at || s.created_at,
+            is_placeholder: false,
+          });
+        });
+      } else if (profileError) {
         console.error("[interviewerService] Error fetching profiles with deals:", profileError.message);
         // Fallback to simple profiles fetch if join fails
         const { data: profilesSimple } = await supabase
@@ -46,26 +72,12 @@ export const interviewerService = {
           .neq('status', 'rejected');
         
         (profilesSimple || []).forEach((s: any) => {
-          if (!interviewedIds.has(s.id) && !interviewedEmails.has(s.email)) {
+          const emailKey = s.email?.toLowerCase().trim();
+          if (!interviewedIds.has(s.id) && (!emailKey || !interviewedEmails.has(emailKey))) {
             result.push({
               ...s,
               course_name: 'N/A',
               interview_status: s.status === 'waiting_approval' ? 'Waiting Interview' : 'Pending',
-              is_placeholder: false,
-            });
-          }
-        });
-      } else {
-        (profiles || []).forEach((s: any) => {
-          if (!interviewedIds.has(s.id) && !interviewedEmails.has(s.email)) {
-            const deal = s.admission_deals?.[0] || null;
-            // Prioritize admission_status as it contains 'pending_admin_review' and other workflow steps
-            const statusVal = deal?.admission_status || deal?.student_account_status || 'Pending';
-            result.push({
-              ...s,
-              course_name: deal?.course?.name || 'N/A',
-              interview_status: s.status === 'waiting_approval' ? 'Waiting Interview' : statusVal,
-              created_at: deal?.created_at || s.created_at,
               is_placeholder: false,
             });
           }
@@ -80,24 +92,29 @@ export const interviewerService = {
 
       if (!dealError && deals) {
         deals.forEach((d: any) => {
-          if (!interviewedEmails.has(d.student_email)) {
-            result.push({
-              id: d.id, // Temporary ID (Deal ID)
-              name: d.student_name,
-              email: d.student_email,
-              course_name: d.course?.name || 'N/A',
-              interview_status: 'Pre-Signup Deal',
-              created_at: d.created_at,
-              is_placeholder: true,
-              // Keep original deal data for placeholder resolution
-              father_name: d.father_name,
-              phone_number: d.phone_number,
-              whatsapp_number: d.whatsapp_number,
-              course_id: d.course_id,
-              teacher_id: d.teacher_id,
-              class: d.class,
-            });
+          const emailKey = d.student_email?.toLowerCase().trim();
+          if (emailKey && interviewedEmails.has(emailKey)) {
+            return; // Skip: already interviewed
           }
+          if (['pending_admin_review', 'approved', 'rejected'].includes(d.admission_status)) {
+            return; // Skip: deal already resolved
+          }
+
+          result.push({
+            id: d.id, // Temporary ID (Deal ID)
+            name: d.student_name,
+            email: d.student_email,
+            course_name: d.course?.name || 'N/A',
+            interview_status: 'Pre-Signup Deal',
+            created_at: d.created_at,
+            is_placeholder: true,
+            father_name: d.father_name,
+            phone_number: d.phone_number,
+            whatsapp_number: d.whatsapp_number,
+            course_id: d.course_id,
+            teacher_id: d.teacher_id,
+            class: d.class,
+          });
         });
       }
 
@@ -111,7 +128,7 @@ export const interviewerService = {
       return sortedResult;
     } catch (err) {
       console.error("[interviewerService] Critical error in getNewStudents:", err);
-      return result; // Return whatever we gathered
+      return result;
     }
   },
 
@@ -183,38 +200,21 @@ export const interviewerService = {
     if (error) throw error;
   },
 
-  // Get scheduled progress reviews
+  // Get scheduled progress reviews that are due today or overdue
   getPendingProgressReviews: async (): Promise<StudentProgressReview[]> => {
     console.log("[interviewerService] getPendingProgressReviews called");
     try {
-      // Try fortnight_reviews first
+      const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
       const { data, error } = await supabase
         .from('fortnight_reviews')
         .select('*, profiles!student_id(name)')
         .is('completed_at', null)
+        .lte('scheduled_date', today) // Only show reviews that are due today or overdue
         .order('scheduled_date', { ascending: true });
 
       if (error) {
-        console.warn("[interviewerService] fortnight_reviews query failed, trying student_progress_reviews:", error.message);
-        // Try student_progress_reviews as fallback
-        const { data: data2, error: error2 } = await supabase
-          .from('student_progress_reviews')
-          .select('*, profiles!student_id(name)')
-          .is('completed_at', null)
-          .order('scheduled_date', { ascending: true });
-
-        if (error2) {
-          console.error("[interviewerService] Both fortnight_reviews and student_progress_reviews failed:", error2.message);
-          return []; // Return empty array instead of throwing to prevent dashboard crash
-        }
-        
-        const mappedData = (data2 || []).map((row: any) => ({
-          ...row,
-          student_name: row.profiles?.name || 'Unknown Student',
-          review_interview_id: row.admission_interview_id || row.interview_id,
-        }));
-        console.log("[interviewerService] getPendingProgressReviews (fallback) success:", mappedData.length);
-        return mappedData;
+        console.error("[interviewerService] getPendingProgressReviews query failed:", error.message);
+        return [];
       }
 
       const mappedData = (data || []).map((row: any) => ({
@@ -239,7 +239,7 @@ export const interviewerService = {
     confidence: number;
     technicalSkills: number;
     learningAbility: number;
-    assignedLevel: 'Beginner' | 'Intermediate' | 'Advanced';
+    assignedLevel: 'Beginner' | 'Elementary' | 'Intermediate' | 'Advanced';
     strengths: string;
     weaknesses: string;
     recommendations: string;
@@ -277,6 +277,7 @@ export const interviewerService = {
         student_id: review.student_id,
         interviewer_id: params.interviewerId,
         interview_type: 'progress_review',
+        status: 'completed', // Set status explicitly to avoid showing up in Admin pending reviews queue
         notes: params.notes,
         english: params.english,
         communication: params.communication,
@@ -306,6 +307,56 @@ export const interviewerService = {
 
     if (updateReviewErr) throw updateReviewErr;
 
+    // Automatically schedule next review (if less than 3)
+    if (review.review_number < 3) {
+      const nextReviewNum = review.review_number + 1;
+
+      // Fetch the admission approval date from the initial admission interview
+      const { data: adminInt } = await supabase
+        .from('interviews')
+        .select('admin_reviewed_at, created_at')
+        .eq('student_id', review.student_id)
+        .eq('interview_type', 'admission')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const approvalDateVal = adminInt?.admin_reviewed_at || adminInt?.created_at || new Date().toISOString();
+      const approvalDate = new Date(approvalDateVal);
+      
+      // Calculate target date: Approval Date + (nextReviewNum * 15) days
+      const daysToAdd = nextReviewNum * 15;
+      approvalDate.setDate(approvalDate.getDate() + daysToAdd);
+      const nextScheduledDateStr = approvalDate.toISOString().split('T')[0];
+
+      const { error: scheduleNextErr } = await supabase
+        .from('fortnight_reviews')
+        .insert({
+          student_id: review.student_id,
+          review_number: nextReviewNum,
+          scheduled_date: nextScheduledDateStr,
+        });
+
+      if (scheduleNextErr) {
+        console.warn("Failed to automatically schedule next review:", scheduleNextErr.message);
+      }
+    }
+
+    // Update student progress reports (timeline)
+    const { error: timelineErr } = await supabase
+      .from('student_progress_reports')
+      .insert({
+        student_id: review.student_id,
+        teacher_id: params.interviewerId,
+        progress_notes: `Completed Fortnight Review #${review.review_number}. Level assigned: ${params.assignedLevel}. Growth: ${growth}%. Recommendations: ${params.recommendations}`,
+        improvement_percentage: growth,
+      });
+
+    if (timelineErr) {
+      console.warn("Failed to update student progress timeline:", timelineErr.message);
+    }
+
     // 5. Update student level
     await supabase
       .from('student_profiles')
@@ -323,7 +374,7 @@ export const interviewerService = {
       read: false,
     });
 
-    // 7. Notify teacher (also reference student_id for cascade-delete on student removal)
+    // 7. Notify assigned teacher
     const { data: sp } = await supabase
       .from('student_profiles')
       .select('assigned_teacher_id')
@@ -337,7 +388,41 @@ export const interviewerService = {
         role: 'teacher',
         notification_type: 'progress_review_due',
         title: 'Student Progress Review Complete',
-        message: `Progress review for your student was completed. Growth: ${growth}%.`,
+        message: `Progress review #${review.review_number} for your student was completed. Growth: ${growth}%.`,
+        read: false,
+      });
+    }
+
+    // 8. Notify all admins of completion
+    const { data: adminProfiles } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('role', 'admin')
+      .eq('approved', true);
+
+    if (adminProfiles && adminProfiles.length > 0) {
+      for (const admin of adminProfiles) {
+        await supabase.from('notifications').insert({
+          user_id: admin.id,
+          student_id: review.student_id,
+          role: 'admin',
+          notification_type: 'progress_review_due',
+          title: 'Progress Review Completed',
+          message: `Review #${review.review_number} completed. New Level: ${params.assignedLevel}. Growth: ${growth}%.`,
+          read: false,
+        });
+      }
+    }
+
+    // 9. If this is Review #3, send cycle-complete notification to student
+    if (review.review_number >= 3) {
+      await supabase.from('notifications').insert({
+        user_id: review.student_id,
+        student_id: review.student_id,
+        role: 'student',
+        notification_type: 'progress_review_due',
+        title: '45-Day Review Cycle Complete',
+        message: `Your 45-day review cycle is complete. Final assigned level: ${params.assignedLevel}. Well done!`,
         read: false,
       });
     }

@@ -674,7 +674,7 @@ function MyStudentsTabScreen({ user, colors }: { user: any; colors: any }) {
                         {new Date(iv.created_at).toLocaleDateString()}
                       </Text>
                     </View>
-                    
+
                     <View style={msStyles.historyScoreRow}>
                       <Text style={[msStyles.historyScore, { color: colors.text }]}>Total Score: {iv.total_score}/50</Text>
                       {iv.assigned_level && (
@@ -689,13 +689,13 @@ function MyStudentsTabScreen({ user, colors }: { user: any; colors: any }) {
                       <Text style={{ fontSize: 11, color: colors.textSecondary, fontWeight: '600' }}>
                         Sub-Scores: Eng {iv.english} | Comm {iv.communication} | Conf {iv.confidence} | Tech {iv.technical_skills} | Learn {iv.learning_ability}
                       </Text>
-                      
+
                       {iv.strengths && (
                         <Text style={{ fontSize: 12, color: colors.text, marginTop: 4 }}>
                           <Text style={{ fontWeight: '700', color: colors.success }}>Strengths: </Text>{iv.strengths}
                         </Text>
                       )}
-                      
+
                       {iv.weaknesses && (
                         <Text style={{ fontSize: 12, color: colors.text }}>
                           <Text style={{ fontWeight: '700', color: colors.danger }}>Weaknesses: </Text>{iv.weaknesses}
@@ -1006,12 +1006,12 @@ export default function TeacherDashboardScreen() {
     try {
       setIsLoading(true);
       if (!user?.id) return;
-      
+
       const [coursesData, statsData] = await Promise.all([
         teacherService.getCourses(user.id),
         dashboardService.getTeacherStats(user.id)
       ]);
-      
+
       setCourses(coursesData);
       setStats(statsData);
     } catch (err) {
@@ -1499,7 +1499,7 @@ const styles = StyleSheet.create({
 
   // Analytics transplanted styles
   coursePicker: {
-    marginBottom: 10,
+    marginBottom: 15,
     maxHeight: 44,
   },
   courseChip: {
@@ -1510,7 +1510,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   courseChipText: {
-    fontSize: 20,
+    fontSize: 17,
     fontWeight: '500',
     textTransform: 'uppercase',
   },

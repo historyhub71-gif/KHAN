@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Attendance Tracker",
-    "slug": "attendence-app",
+    "name": "Institute Management System",
+    "slug": "institute-management-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

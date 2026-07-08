@@ -415,13 +415,6 @@ function CoursesTabScreen({ router, colors }: CoursesTabProps) {
       color: colors.success,
     },
     {
-      title: 'Course Assignments',
-      desc: 'Assign teachers & enroll students',
-      icon: 'assignment-ind',
-      route: '/(admin)/course-assignments',
-      color: colors.secondary,
-    },
-    {
       title: 'Interview Analytics',
       desc: 'Track admission and progress reviews',
       icon: 'analytics',
@@ -540,7 +533,7 @@ function ProfileTabScreen({
           <Text style={[styles.profileName, { color: colors.text }]}>{user?.name}</Text>
           <Text style={[styles.profileEmail, { color: colors.textSecondary }]}>{user?.email}</Text>
           <View style={[styles.roleLabel, { backgroundColor: colors.danger + '15' }]}>
-            <Text style={[styles.roleLabelText, { color: colors.danger }]}>ADMINISTRATOR</Text>
+            <Text style={[styles.roleLabelText, { color: colors.danger }]}>DIRECTOR</Text>
           </View>
         </View>
 

@@ -154,6 +154,30 @@ export default function AdminFeesScreen() {
     }
   };
 
+  // Delete a fee payment record (soft delete)
+  const handleDeleteRecord = (record: any) => {
+    Alert.alert(
+      'Delete Fee Record',
+      `Permanently delete the fee record for ${record.student_name}? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await feeService.deletePayment(record.id, user!.id);
+              setSelectedRecord(null);
+              fetchData(true);
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to delete fee record.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Export report of filtered transactions
   const handleExportReport = async () => {
     try {
@@ -523,6 +547,18 @@ export default function AdminFeesScreen() {
                       </Text>
                     </View>
                   </View>
+
+                  {/* Delete button row on card */}
+                  <View style={[styles.cardDeleteRow, { borderTopColor: colors.border }]}>
+                    <TouchableOpacity
+                      style={[styles.cardDeleteBtn, { borderColor: colors.danger }]}
+                      onPress={() => handleDeleteRecord(item)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="trash-outline" size={13} color={colors.danger} />
+                      <Text style={[styles.cardDeleteBtnText, { color: colors.danger }]}>Delete Record</Text>
+                    </TouchableOpacity>
+                  </View>
                 </TouchableOpacity>
               );
             })}
@@ -703,14 +739,30 @@ export default function AdminFeesScreen() {
                   <Ionicons name="download" size={16} color="#fff" />
                   <Text style={[styles.actionBtnText, { color: '#fff' }]}>Download PDF</Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: colors.danger + '15', borderColor: colors.danger, borderWidth: 1.5 }]}
+                  onPress={() => handleDeleteRecord(selectedRecord)}
+                >
+                  <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                  <Text style={[styles.actionBtnText, { color: colors.danger }]}>Delete Record</Text>
+                </TouchableOpacity>
               </View>
             ) : (
-              <TouchableOpacity
-                style={[styles.closeBtn, { backgroundColor: colors.border }]}
-                onPress={() => setSelectedRecord(null)}
-              >
-                <Text style={[styles.closeBtnText, { color: colors.text }]}>Close</Text>
-              </TouchableOpacity>
+              <View style={{ gap: 8, marginTop: 16 }}>
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: colors.danger + '15', borderColor: colors.danger, borderWidth: 1.5 }]}
+                  onPress={() => handleDeleteRecord(selectedRecord)}
+                >
+                  <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                  <Text style={[styles.actionBtnText, { color: colors.danger }]}>Delete Record</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.closeBtn, { backgroundColor: colors.border }]}
+                  onPress={() => setSelectedRecord(null)}
+                >
+                  <Text style={[styles.closeBtnText, { color: colors.text }]}>Close</Text>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
         </View>
@@ -757,6 +809,9 @@ const styles = StyleSheet.create({
   cardAmount: { fontSize: 16, fontWeight: '800' },
   statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2.5, borderRadius: 6 },
   statusBadgeText: { fontSize: 9.5, fontWeight: '800' },
+  cardDeleteRow: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1 },
+  cardDeleteBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1.5 },
+  cardDeleteBtnText: { fontSize: 11, fontWeight: '700' },
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalCard: { width: '90%', borderRadius: 24, padding: 22, elevation: 8 },

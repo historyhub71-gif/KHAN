@@ -220,14 +220,18 @@ export const admissionService = {
     if (error) throw error;
   },
 
-  // ── Get all fortnight reviews (for ASR / admin)
+  // ── Get fortnight reviews (for ASR / admin).
+  // For 'pending': only returns reviews whose scheduled_date has arrived (due today or overdue).
   getFortnightReviews: async (filter: 'all' | 'pending' | 'completed' = 'pending') => {
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
     let query = supabase
       .from('fortnight_reviews')
       .select(`*, student:student_id(id, name, email)`)
       .order('scheduled_date', { ascending: true });
 
-    if (filter === 'pending') query = query.is('completed_at', null);
+    if (filter === 'pending') {
+      query = query.is('completed_at', null).lte('scheduled_date', today);
+    }
     if (filter === 'completed') query = query.not('completed_at', 'is', null);
 
     const { data, error } = await query;
@@ -240,23 +244,6 @@ export const admissionService = {
     }));
   },
 
-  // ── Complete a fortnight review
-  completeForthnightReview: async (params: {
-    reviewId: string;
-    interviewId?: string;
-    notes: string;
-  }) => {
-    const { error } = await supabase
-      .from('fortnight_reviews')
-      .update({
-        completed_at: new Date().toISOString(),
-        interview_id: params.interviewId ?? null,
-        notes: params.notes,
-      })
-      .eq('id', params.reviewId);
-
-    if (error) throw error;
-  },
 
   // ── Get interview analytics stats
   getInterviewAnalytics: async () => {

@@ -211,7 +211,7 @@ export interface Interview {
   technical_skills: number | null;
   learning_ability: number | null;
   total_score: number;
-  assigned_level: 'Beginner' | 'Intermediate' | 'Advanced' | null;
+  assigned_level: 'Beginner' | 'Elementary' | 'Intermediate' | 'Advanced' | null;
   strengths: string | null;
   weaknesses: string | null;
   recommendations: string | null;
